@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       baseline-engine:
-        description: "Baseline Engine (--baseline=..)"
+        description: "Baseline engine (--baseline=…)"
         type: choice
         options:
           - godot
@@ -26,8 +26,8 @@ on:
           - ReleaseSmall
         default: Debug
       additional-engines:
-        description: "Additional Engines (--engines=..)"
-        type: choice # TODO: multiple choice
+        description: "Additional engines beyond baseline (--engines=…)"
+        type: choice # GH has no multi-select; use all / none / one
         options:
           - none
           - all
@@ -37,18 +37,31 @@ on:
           - rex
         default: none
       cpuarchos:
-        description: "CpuArch-OS Targets (default=auto detect local native os, --targets=..)"
-        type: choice # TODO: multiple choice
-        options: [auto, all, x64musl, wasm32] # TODO: add all cpuarch-os targets...
+        description: "CpuArch-OS targets (--targets=…; auto = host native + wasm32)"
+        type: choice # multi-select TODO later (comma-separated via extra)
+        options:
+          - auto
+          - all
+          - wasm32
+          - x64musl
+          - x64v1musl
+          - arm64musl
+          - arm64v1musl
+          - x64mac
+          - arm64mac
+          - x64win
+          - x64mingw
+          - arm64win
+          - arm64mingw
         default: auto
       tests:
-        description: "Static tests (--tests=..)"
-        type: choice # TODO: multiple choice
+        description: "Static / smoke tests (--tests=…)"
+        type: choice
         options:
           - all
           - none
-          - "roc check"
-          - "zig test"
+          - roc-check
+          - zig-test
           - wasm-validate
           - wasm-ld
           - smoke
@@ -63,61 +76,109 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
+
       - uses: DeterminateSystems/nix-installer-action@main
+
+      # Free GitHub-backed Nix cache (no Cachix / $0)
       - uses: DeterminateSystems/magic-nix-cache-action@main
-      # TODO: can we get free $0, fast public flakehub binary cache?
+
+      # Optional later (still $0): FlakeHub / cache.flakehub.com when the flake is published
+      # - uses: DeterminateSystems/flakehub-cache-action@main
 
       - name: Resolve CI args
         id: args
+        shell: bash
         run: |
-          set -eux
+          set -euxo pipefail
 
-          # Defaults for push / pull_request
+          # Defaults for push / pull_request (lean PR matrix)
           BASELINE="godot"
-          ADDITIONAL=""
-          CPUARCHOS="auto"
+          ENGINES="none"
+          TARGETS="auto"
           OPTIMIZE="Debug"
           TESTS="all"
 
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-
-            # TODO: wire inputs into vars...
-            # SOMEVAR="${{ inputs.somevar }}"
-
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
             BASELINE="godot"
-            ADDITIONAL=""
-            CPUARCHOS="auto"
+            ENGINES="none"
+            TARGETS="auto"
             OPTIMIZE="Debug"
             TESTS="all"
-
           fi
 
-          # TODO: wire args...
-          # Build argv for: roc run scripts/ci.roc -- <args...>
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # master: baseline only unless you widen this later
+            BASELINE="godot"
+            ENGINES="none"
+            TARGETS="auto"
+            OPTIMIZE="Debug"
+            TESTS="all"
+          fi
 
-          echo "argv=$*" >> "$GITHUB_OUTPUT"
-          echo "Resolved: roc run scripts/ci.roc -- $*"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BASELINE="${{ inputs.baseline-engine }}"
+            ENGINES="${{ inputs.additional-engines }}"
+            TARGETS="${{ inputs.cpuarchos }}"
+            OPTIMIZE="${{ inputs.optimize }}"
+            TESTS="${{ inputs.tests }}"
+          fi
+
+          # Guard empties
+          BASELINE="${BASELINE:-godot}"
+          ENGINES="${ENGINES:-none}"
+          TARGETS="${TARGETS:-auto}"
+          OPTIMIZE="${OPTIMIZE:-Debug}"
+          TESTS="${TESTS:-all}"
+
+          # argv for: roc run scripts/ci.roc -- <args...>
+          # Contract (implemented next in scripts/ci.roc):
+          #   --baseline=<engine>
+          #   --engines=<none|all|engine>
+          #   --targets=<auto|all|name>
+          #   --tests=<all|none|roc-check|zig-test|wasm-validate|wasm-ld|smoke>
+          #   -Doptimize=<Debug|ReleaseFast|ReleaseSafe|ReleaseSmall>
+          ARGS=(
+            "--baseline=${BASELINE}"
+            "--engines=${ENGINES}"
+            "--targets=${TARGETS}"
+            "--tests=${TESTS}"
+            "-Doptimize=${OPTIMIZE}"
+          )
+
+          # Single-line argv for the next step (space-separated; values have no spaces)
+          ARGV="${ARGS[*]}"
+          {
+            echo "argv=${ARGV}"
+            echo "baseline=${BASELINE}"
+            echo "engines=${ENGINES}"
+            echo "targets=${TARGETS}"
+            echo "optimize=${OPTIMIZE}"
+            echo "tests=${TESTS}"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Resolved: roc run scripts/ci.roc -- ${ARGV}"
 
       - name: CI inside flake
+        shell: bash
         run: |
-          set -eux
-          # TODO: lean nix shells, pull only what's needed...
+          set -euxo pipefail
+          ARGV='${{ steps.args.outputs.argv }}'
+          # Prefer lean devShells.ci when present
           if nix eval --raw .#devShells.x86_64-linux.ci >/dev/null 2>&1; then
-            nix develop .#ci --command roc run scripts/ci.roc -- ${{ steps.args.outputs.argv }}
+            # shellcheck disable=SC2086
+            nix develop .#ci --command roc run scripts/ci.roc -- ${ARGV}
           else
-            nix develop --command roc run scripts/ci.roc -- ${{ steps.args.outputs.argv }}
+            # shellcheck disable=SC2086
+            nix develop --command roc run scripts/ci.roc -- ${ARGV}
           fi
 
-      # TODO: maybe publish bundle-out, if there isn't any penalty, or storage resource limits or costs.
-      # - name: Upload artefacts
+      # Optional artefacts (enable when you want them; free tier has storage caps)
+      # - name: Upload bundle-out
       #   if: always()
       #   uses: actions/upload-artifact@v4
       #   with:
       #     name: ci-${{ github.run_id }}
-      #     path: |
-      #       smoke-out/
-      #       bundle-out/
-      #       platform-out/
+      #     path: bundle-out/
       #     if-no-files-found: ignore
       #     retention-days: 7
