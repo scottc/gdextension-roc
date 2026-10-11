@@ -830,8 +830,8 @@ phase_dump = |start_id, prepare_ids, eng| {
     { cmds: $cmds, terminal_ids: [iface_id, api_id], next_id: $id }
 }
 
-phase_glue_engine : NodeId, List(NodeId), List(NodeId), EngineSpec, TestOpts -> PhaseResult
-phase_glue_engine = |start_id, prepare_ids, dump_ids, eng, tests| {
+phase_glue_engine : NodeId, List(NodeId), List(NodeId), EngineSpec, List(HostTarget), TestOpts -> PhaseResult
+phase_glue_engine = |start_id, prepare_ids, dump_ids, eng, hosts, tests| {
     slug = eng.slug
     glue_dir = engine_glue_dir(eng)
     platform_dir = engine_platform_dir(eng)
@@ -873,6 +873,7 @@ phase_glue_engine = |start_id, prepare_ids, dump_ids, eng, tests| {
             "scripts/extension_api.generate.roc",
             "--",
             "--engine=${slug}",
+            "--targets=${Str.join_with(hosts.map(|h| h.name_str), ",")}",
         ],
         description: "Generate extension_api platform (${slug})",
         cwd: "",
@@ -1162,40 +1163,24 @@ phase_bundle_engine = |start_id, host_ids, eng, hosts| {
     bund_id = $id
     $id = $id + 1
 
-    # move = Build.cmd({
-    #     id: $id + 1,
-    #     depends_on: [bund_id],
-    #     inputs: [],
-    #     outputs: [],
-    #     program: "sh",
-    #     args: [
-    #         "-c",
-    #         Str.join_with(
-    #             [
-    #                 "set -eu\n",
-    #                 "mkdir -p '", engine_bundle_dir(eng), "'\n",
-    #                 "shopt -s nullglob\n",
-    #                 "moved=0\n",
-    #                 "for f in '", plat, "'/*.tar.zst; do\n",
-    #                 "  mv -f \"$f\" '", engine_bundle_dir(eng), "/'\n",
-    #                 "  moved=1\n",
-    #                 "done\n",
-    #                 "if [ \"$moved\" -eq 0 ]; then\n",
-    #                 "  echo '[bundle] no .tar.zst in ", plat, "' >&2\n",
-    #                 "  exit 1\n",
-    #                 "fi\n",
-    #                 "ls -la '", engine_bundle_dir(eng), "'\n",
-    #             ],
-    #             "",
-    #         ),
-    #     ],
-    #     description: "move bundle artefact (${eng.slug})",
-    #     cwd: "",
-    #     env: [],
-    # })
-    # $cmds = $cmds.append(move)
-    # _move_id = $id
-    # $id = $id + 1
+    # After bundle with cwd = platform-out/godot
+    move = Build.cmd({
+        id: $id,
+        depends_on: [bund_id],
+        inputs: [],
+        outputs: [],
+        program: "sh",
+        args: [
+            "-c",
+            "mkdir -p bundle-out/${eng.slug} && mv -f platform-out/${eng.slug}/*.tar.zst bundle-out/${eng.slug}/",
+        ],
+        description: "move bundle tar.zst (${eng.slug})",
+        cwd: "",
+        env: [],
+    })
+    $cmds = $cmds.append(move)
+    _move_id = $id
+    $id = $id + 1
 
     { cmds: $cmds, terminal_ids: [bund_id], next_id: $id }
 }
@@ -1626,7 +1611,7 @@ main! = |args| {
             }
             FullBuild => {
                 Log.info!("  full-build glue…")
-                g = phase_glue_engine($id, prep.terminal_ids, d.terminal_ids, e, cfg.tests)
+                g = phase_glue_engine($id, prep.terminal_ids, d.terminal_ids, e, cfg.hosts, cfg.tests)
                 $cmds = List.concat($cmds, g.cmds)
                 $id = g.next_id
                 Log.info!("  after glue cmds=${$cmds.len().to_str()}")

@@ -276,12 +276,12 @@ parse_targets = |args| {
             id = str.replace_first("--targets=", "")
             match id {
                 "all" => return all_host_rows.map(|r| r.name)
-                "auto" => return ["wasm32", "x64musl"]
+                "auto" => return ["wasm32", "x64musl"] # TODO: detect local native cpu arch & os.
                 name => return [name]
             }
         }
     }
-    ["x64musl"]
+    ["wasm32", "x64musl"]
 }
 
 render_targets_block : List(Str) -> Str
