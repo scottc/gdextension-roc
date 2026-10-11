@@ -88,7 +88,7 @@ EngineSpec : {
 NodeId : U64
 
 CiRoots : {
-    ci_out_root : Str,
+    smoke_out_root : Str,
     bundle_out_root : Str,
     platform_out_root : Str,
     glue_out_root : Str,
