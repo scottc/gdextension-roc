@@ -153,11 +153,11 @@ engine_gde_call_file = |e| "${engine_glue_dir(e)}/gde_call.zig"
 engine_abi_impl_file : EngineSpec -> Str
 engine_abi_impl_file = |e| "${engine_glue_dir(e)}/zig_platform_abi_impl.zig"
 
-engine_ci_out : EngineSpec -> Str
-engine_ci_out = |e| "smoke-out/${e.slug}"
+engine_smoke_out : EngineSpec -> Str
+engine_smoke_out = |e| "smoke-out/${e.slug}"
 
-engine_ci_workspace : EngineSpec -> Str
-engine_ci_workspace = |e| "smoke-out/${e.slug}/workspace"
+engine_smoke_workspace : EngineSpec -> Str
+engine_smoke_workspace = |e| "smoke-out/${e.slug}/workspace"
 
 engine_project_dir : EngineSpec -> Str
 engine_project_dir = |e| "smoke-out/${e.slug}/workspace/my_game"
@@ -841,7 +841,7 @@ phase_prepare = |start_id, engines, hosts, roots| {
     var $terminal = []
 
     clean_roots = [
-        roots.ci_out_root,
+        roots.smoke_out_root,
         roots.bundle_out_root,
         roots.platform_out_root,
         roots.glue_out_root,
@@ -857,7 +857,7 @@ phase_prepare = |start_id, engines, hosts, roots| {
     }
 
     var $dirs = [
-        roots.ci_out_root,
+        roots.smoke_out_root,
         roots.bundle_out_root,
         roots.platform_out_root,
         roots.glue_out_root,
@@ -871,8 +871,8 @@ phase_prepare = |start_id, engines, hosts, roots| {
                 engine_vendor_dir(eng),
                 engine_platform_dir(eng),
                 engine_glue_dir(eng),
-                engine_ci_out(eng),
-                engine_ci_workspace(eng),
+                engine_smoke_out(eng),
+                engine_smoke_workspace(eng),
                 engine_bundle_out(eng),
                 engine_bundle_workspace(eng),
             ],
