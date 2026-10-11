@@ -102,7 +102,7 @@ jobs:
       - name: CI inside flake
         run: |
           set -eux
-          # TODO: lean nix shell.
+          # TODO: lean nix shells, pull only what's needed...
           if nix eval --raw .#devShells.x86_64-linux.ci >/dev/null 2>&1; then
             nix develop .#ci --command roc run scripts/ci.roc -- ${{ steps.args.outputs.argv }}
           else
