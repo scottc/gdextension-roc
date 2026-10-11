@@ -112,14 +112,14 @@ jobs:
             nix develop --command roc run scripts/ci.roc -- ${{ steps.args.outputs.argv }}
           fi
 
-      - name: Upload artefacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ci-${{ github.run_id }}
-          path: |
-            ci-out/
-            bundle-out/
-            platform-out/
-          if-no-files-found: ignore
-          retention-days: 7
+      # - name: Upload artefacts
+      #   if: always()
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: ci-${{ github.run_id }}
+      #     path: |
+      #       ci-out/
+      #       bundle-out/
+      #       platform-out/
+      #     if-no-files-found: ignore
+      #     retention-days: 7
