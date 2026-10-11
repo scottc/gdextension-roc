@@ -2,8 +2,7 @@
 
 ## Generate Roc + Zig bindings from Godot's extension_api.json
 app [main!] {
-    roc: "nightly-2026-09-27-a3ce7f1",
-    pf: platform "https://github.com/roc-lang/basic-cli/releases/download/0.23.0/GNN5tt2gKdX4dhawg4915C4YB193woHFdcCkz31fhGxv.tar.zst"
+    pf: platform "https://github.com/roc-lang/basic-cli/releases/download/0.25.0/CZsY7tYZwR3rj9kYbpaCfxki2yVAaRL8bBwMLvB2xkbA.tar.zst"
 }
 
 import pf.Path
@@ -1131,7 +1130,7 @@ gen_platform_main_roc = |eapi| {
     \\        GodotRoc,
     \\${expose}
     \\    ]
-    \\    packages { roc: "nightly-2026-09-27-a3ce7f1" }
+    \\    packages { }
     \\    provides {
     \\        "godot_roc_scene_init": scene_init_for_host!,
     \\        "godot_roc_ready": ready_for_host!,

@@ -191,6 +191,8 @@ The scripts folder is for platform generator maintainers, to perform a variety o
 
 - `nix flake update`: Upgrade the dev tools, you'll need to manually upgrade some important pins, see: `flake.nix`.
 
+- `nix flake check`: Check the flake.
+
 - `nix develop`: Enter the development environment.
 
 ## Build & Run Binding Generator - For platform maintainers.
@@ -198,6 +200,8 @@ The scripts folder is for platform generator maintainers, to perform a variety o
 Note: nix package manager is used to manage dev tooling.
 
 ```sh
-nix develop
-roc run scripts/ci.roc
+nix develop --command roc run scripts/ci.roc -- quick -Doptimize=Debug
+```
+```sh
+nix develop --command roc run scripts/ci.roc -- full deep-wasm -Doptimize=ReleaseFast
 ```

@@ -17,7 +17,6 @@
 ## Continuous Integration — engine × host matrix (roc-build)
 app [main!] {
     pf: platform "https://github.com/scottc/roc-build/releases/download/0.0.1-pre-alpha-test1/8jZuyEFpCc7ep6yu2iXBT4cAYoxZdjTk5kxShUCMXqgx.tar.zst",
-    roc: "nightly-2026-09-27-a3ce7f1",
 }
 
 import pf.Build
@@ -557,7 +556,7 @@ default_roots = {
     project_template: "ci",
     project_name: "My Game",
     host_entry: "host/host.zig",
-    zig_glue_roc: "vendor/roc/git-a3ce7f1/ZigGlue.roc",
+    zig_glue_roc: "vendor/roc/nightly-2026-10-09-258ab27/ZigGlue.roc",
 }
 
 optimize_flag : Optimize -> Str

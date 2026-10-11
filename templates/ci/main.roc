@@ -1,6 +1,5 @@
 ## My Project — sample + light CI smoke tests
 app [ready!, process!, scene_init!, physics_process!] {
-    roc: "nightly-2026-09-27-a3ce7f1",
     pf: platform "[PLATFORM_GOES_HERE]",
 }
 

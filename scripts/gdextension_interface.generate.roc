@@ -9,8 +9,7 @@
 ##   roc run scripts/gdextension_interface.generate.roc -- --engine=redot
 
 app [main!] {
-    roc: "nightly-2026-09-27-a3ce7f1",
-    pf: platform "https://github.com/roc-lang/basic-cli/releases/download/0.23.0/GNN5tt2gKdX4dhawg4915C4YB193woHFdcCkz31fhGxv.tar.zst"
+    pf: platform "https://github.com/roc-lang/basic-cli/releases/download/0.25.0/CZsY7tYZwR3rj9kYbpaCfxki2yVAaRL8bBwMLvB2xkbA.tar.zst"
 }
 
 import pf.Path
