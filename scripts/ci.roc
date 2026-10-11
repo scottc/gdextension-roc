@@ -3,20 +3,24 @@
 #
 # Usage:
 #   roc run scripts/ci.roc
-#   roc run scripts/ci.roc -- quick
-#   roc run scripts/ci.roc -- full
-#   roc run scripts/ci.roc -- full deep-wasm -Doptimize=Debug
-#   roc run scripts/ci.roc -- full --publish
-#   GITHUB_TOKEN=ghp_... roc run scripts/ci.roc -- full --publish --tag=v0.1.0
+#   roc run scripts/ci.roc -- --baseline=godot --engines=none --targets=auto --tests=all -Doptimize=Debug
+#   roc run scripts/ci.roc -- --baseline=godot --engines=all --targets=all --tests=all
+#   roc run scripts/ci.roc -- --publish --tag=nightly-2026-10-11-abc1234
 #
-# Web export runs only for the primary engine (godot / 4.7.2 templates).
-# Other engines still build .so + wasm; they skip headless Web export unless
-# matching export templates are installed.
+# TODO:
+# --stage=bundle          # enable one stage
+# --no-stage=bundle       # disable one
+# --stages=ci             # preset
+# --stages=publish        # preset
+#
+# Legacy:
+#   roc run scripts/ci.roc -- quick
+#   roc run scripts/ci.roc -- full deep-wasm
 #
 
 ## Continuous Integration — engine × host matrix (roc-build)
 app [main!] {
-    pf: platform "https://github.com/scottc/roc-build/releases/download/0.0.1-pre-alpha-test1/8jZuyEFpCc7ep6yu2iXBT4cAYoxZdjTk5kxShUCMXqgx.tar.zst",
+    pf: platform "https://github.com/scottc/roc-build/releases/download/v0.0.5-alpha/5YqLuJixx2M3z6GcQN666sSVW2TXZkDt52Ny7V67poSD.tar.zst",
 }
 
 import pf.Build
@@ -27,8 +31,6 @@ import pf.Log
 # =============================================================================
 
 Optimize : [Debug, ReleaseFast, ReleaseSafe, ReleaseSmall]
-
-CiMode : [Quick, Full]
 
 LibKind : [StaticLib, WasmObj]
 
@@ -57,153 +59,102 @@ HostTarget : {
     kind : LibKind,
     lib_file : Str,
     mcpu : [NoCpu, Cpu(Str)],
-    baseline : [NoBaseline, Baseline(HostName)],
+    baseline : [NoBaseline, Baseline(Str)],
     tier : HostTier,
 }
 
 EngineName : [Godot, Godot451, Redot, Rex]
 
-DumpKind : [GdextensionInterface, GdextensionInterfaceJson, ExtensionApi]
-
-EngineDump : {
-    kind : DumpKind,
-    program : Str,
-    args : List(Str),
-    description : Str,
-}
-
 EngineSpec : {
     name : EngineName,
     slug : Str,
+    cli_id : Str,
     program : Str,
-    required_in_full : Bool,
-    is_primary : Bool,
-    ## Headless Web export needs matching export templates (only primary has them in nix).
-    export_web : Bool,
     pipeline : EnginePipeline,
-    dumps : List(EngineDump),
+    export_web : Bool,
 }
 
-NodeId : U64
-
-CiRoots : {
-    smoke_out_root : Str,
-    bundle_out_root : Str,
-    platform_out_root : Str,
-    glue_out_root : Str,
-    vendor_out_root : Str,
-    project_template : Str,
-    project_name : Str,
-    host_entry : Str,
-    zig_glue_roc : Str,
-}
-
-ReplacePair : {
-    find : Str,
-    replace : Str,
+TestOpts : {
+    roc_check : Bool,
+    zig_test : Bool,
+    wasm_validate : Bool,
+    wasm_ld : Bool,
+    smoke : Bool,
 }
 
 PublishOpts : {
     enabled : Bool,
-    tag : Str,
-    token : Str,
+    tag : [AutoTag, Tag(Str)],
 }
 
-# =============================================================================
-# Id allocator
-# =============================================================================
+CiConfig : {
+    baseline : EngineSpec,
+    engines : List(EngineSpec),
+    hosts : List(HostTarget),
+    optimize : Optimize,
+    tests : TestOpts,
+    publish : PublishOpts,
+}
 
-take_id : NodeId -> (NodeId, NodeId)
-take_id = |next| (next, next + 1)
+CiRoots : {
+    dump_out : Str,
+    platform_out : Str,
+    glue_out : Str,
+    bundle_out : Str,
+    smoke_out : Str,
+    vendor_out : Str,
+}
 
-# =============================================================================
-# Paths
-# =============================================================================
+NodeId : U64
 
-engine_vendor_dir : EngineSpec -> Str
-engine_vendor_dir = |e| "dump-out/${e.slug}"
+PhaseResult : {
+    cmds : List(Build.Cmd),
+    terminal_ids : List(NodeId),
+    next_id : NodeId,
+}
 
-engine_platform_dir : EngineSpec -> Str
-engine_platform_dir = |e| "platform-out/${e.slug}"
+ReplacePair : { find : Str, replace : Str }
 
-engine_glue_dir : EngineSpec -> Str
-engine_glue_dir = |e| "host/glue-out/${e.slug}"
-
-engine_platform_main : EngineSpec -> Str
-engine_platform_main = |e| "${engine_platform_dir(e)}/main.roc"
-
-engine_host_out_path : EngineSpec, HostTarget -> Str
-engine_host_out_path = |e, t|
-    "${engine_platform_dir(e)}/targets/${t.name_str}/${t.lib_file}"
-
-engine_host_out_dir : EngineSpec, HostTarget -> Str
-engine_host_out_dir = |e, t|
-    "${engine_platform_dir(e)}/targets/${t.name_str}"
-
-engine_abi_file : EngineSpec -> Str
-engine_abi_file = |e| "${engine_glue_dir(e)}/roc_platform_abi.zig"
-
-engine_gdext_file : EngineSpec -> Str
-engine_gdext_file = |e| "${engine_glue_dir(e)}/gdextension_interface.zig"
-
-engine_gde_call_file : EngineSpec -> Str
-engine_gde_call_file = |e| "${engine_glue_dir(e)}/gde_call.zig"
-
-engine_abi_impl_file : EngineSpec -> Str
-engine_abi_impl_file = |e| "${engine_glue_dir(e)}/zig_platform_abi_impl.zig"
-
-engine_smoke_out : EngineSpec -> Str
-engine_smoke_out = |e| "smoke-out/${e.slug}"
-
-engine_smoke_workspace : EngineSpec -> Str
-engine_smoke_workspace = |e| "smoke-out/${e.slug}/workspace"
-
-engine_project_dir : EngineSpec -> Str
-engine_project_dir = |e| "smoke-out/${e.slug}/workspace/my_game"
-
-engine_project_main : EngineSpec -> Str
-engine_project_main = |e| "${engine_project_dir(e)}/main.roc"
-
-engine_project_platform_dir : EngineSpec -> Str
-engine_project_platform_dir = |e| "${engine_project_dir(e)}/platform"
-
-engine_project_platform_main : EngineSpec -> Str
-engine_project_platform_main = |e| "${engine_project_platform_dir(e)}/main.roc"
-
-engine_project_linux_out : EngineSpec -> Str
-engine_project_linux_out = |e| "${engine_project_dir(e)}/my_game.so"
-
-engine_project_temp_a : EngineSpec -> Str
-engine_project_temp_a = |e| "${engine_project_dir(e)}/temp.a"
-
-engine_project_wasm : EngineSpec -> Str
-engine_project_wasm = |e| "${engine_project_dir(e)}/my_game.wasm"
-
-engine_project_godot : EngineSpec -> Str
-engine_project_godot = |e| "${engine_project_dir(e)}/project.godot"
-
-engine_export_index : EngineSpec -> Str
-engine_export_index = |e| "${engine_project_dir(e)}/export/index.html"
-
-engine_bundle_out : EngineSpec -> Str
-engine_bundle_out = |e| "bundle-out/${e.slug}"
-
-engine_bundle_workspace : EngineSpec -> Str
-engine_bundle_workspace = |e| "bundle-out/${e.slug}/workspace"
-
-engine_bundle_platform_name : EngineSpec -> Str
-engine_bundle_platform_name = |e| "platform-${e.slug}"
-
-engine_bundle_platform_dest : EngineSpec -> Str
-engine_bundle_platform_dest = |e|
-    "${engine_bundle_workspace(e)}/${engine_bundle_platform_name(e)}"
-
-engine_local_platform_pkg : Str
-engine_local_platform_pkg = "./platform/main.roc"
+StageOpts : {
+    prepare : Bool,
+    dump : Bool,
+    glue : Bool,
+    hosts : Bool,
+    bundle : Bool,   # off in CI, on for publish
+    workspace : Bool,
+    game : Bool,
+    publish : Bool,
+}
 
 # =============================================================================
 # Matrices
 # =============================================================================
+
+# Defaults for local / ci.yml
+stages_ci : StageOpts
+stages_ci = {
+    prepare: Bool.True,
+    dump: Bool.True,
+    glue: Bool.True,
+    hosts: Bool.True,
+    bundle: Bool.False,   # optional artefact only
+    workspace: Bool.True,
+    game: Bool.True,
+    publish: Bool.False,
+}
+
+# Defaults for publish.yml
+stages_publish : StageOpts
+stages_publish = {
+    prepare: Bool.True,
+    dump: Bool.True,
+    glue: Bool.True,
+    hosts: Bool.True,
+    bundle: Bool.True,    # required
+    workspace: Bool.False,
+    game: Bool.False,
+    publish: Bool.True,
+}
 
 host_targets : List(HostTarget)
 host_targets = [
@@ -224,7 +175,7 @@ host_targets = [
         kind: StaticLib,
         lib_file: "libhost.a",
         mcpu: NoCpu,
-        baseline: Baseline(X64V1Musl),
+        baseline: NoBaseline,
         tier: Primary,
     },
     {
@@ -234,8 +185,8 @@ host_targets = [
         kind: StaticLib,
         lib_file: "libhost.a",
         mcpu: Cpu("x86_64"),
-        baseline: NoBaseline,
-        tier: Primary,
+        baseline: Baseline("x86_64"),
+        tier: Secondary,
     },
     {
         name: Arm64Musl,
@@ -244,7 +195,7 @@ host_targets = [
         kind: StaticLib,
         lib_file: "libhost.a",
         mcpu: NoCpu,
-        baseline: Baseline(Arm64V1Musl),
+        baseline: NoBaseline,
         tier: Secondary,
     },
     {
@@ -253,8 +204,8 @@ host_targets = [
         zig_triple: "aarch64-linux-musl",
         kind: StaticLib,
         lib_file: "libhost.a",
-        mcpu: Cpu("generic"),
-        baseline: NoBaseline,
+        mcpu: Cpu("baseline"),
+        baseline: Baseline("baseline"),
         tier: Secondary,
     },
     {
@@ -280,7 +231,7 @@ host_targets = [
     {
         name: X64Win,
         name_str: "x64win",
-        zig_triple: "x86_64-windows-msvc",
+        zig_triple: "x86_64-windows",
         kind: StaticLib,
         lib_file: "host.lib",
         mcpu: NoCpu,
@@ -300,12 +251,12 @@ host_targets = [
     {
         name: Arm64Win,
         name_str: "arm64win",
-        zig_triple: "aarch64-windows-msvc",
+        zig_triple: "aarch64-windows",
         kind: StaticLib,
         lib_file: "host.lib",
         mcpu: NoCpu,
         baseline: NoBaseline,
-        tier: Experimental,
+        tier: Secondary,
     },
     {
         name: Arm64Mingw,
@@ -324,212 +275,344 @@ engine_specs = [
     {
         name: Godot,
         slug: "godot",
+        cli_id: "godot",
         program: "godot",
-        required_in_full: Bool.True,
-        is_primary: Bool.True,
-        export_web: Bool.True,
         pipeline: FullBuild,
-        dumps: [
-            {
-                kind: GdextensionInterface,
-                program: "godot",
-                args: ["--headless", "--dump-gdextension-interface"],
-                description: "Godot: dump-gdextension-interface",
-            },
-            {
-                kind: GdextensionInterfaceJson,
-                program: "godot",
-                args: ["--headless", "--dump-gdextension-interface-json"],
-                description: "Godot: dump-gdextension-interface-json",
-            },
-            {
-                kind: ExtensionApi,
-                program: "godot",
-                args: ["--headless", "--dump-extension-api"],
-                description: "Godot: dump-extension-api",
-            },
-        ],
+        export_web: Bool.True,
     },
     {
         name: Godot451,
         slug: "godot_4_5_1",
+        cli_id: "godot4.5",
         program: "godot4.5",
-        required_in_full: Bool.True,
-        is_primary: Bool.False,
-        # Needs 4.5.1 export templates; nix env only ships 4.7.2 templates.
-        export_web: Bool.False,
         pipeline: FullBuild,
-        dumps: [
-            {
-                kind: GdextensionInterface,
-                program: "godot4.5",
-                args: ["--headless", "--dump-gdextension-interface"],
-                description: "Godot 4.5.1: dump-gdextension-interface",
-            },
-            {
-                kind: ExtensionApi,
-                program: "godot4.5",
-                args: ["--headless", "--dump-extension-api"],
-                description: "Godot 4.5.1: dump-extension-api",
-            },
-        ],
+        export_web: Bool.False,
     },
     {
         name: Redot,
         slug: "redot",
+        cli_id: "redot",
         program: "redot",
-        required_in_full: Bool.True,
-        is_primary: Bool.False,
-        export_web: Bool.False,
         pipeline: FullBuild,
-        dumps: [
-            {
-                kind: GdextensionInterface,
-                program: "redot",
-                args: ["--headless", "--dump-gdextension-interface"],
-                description: "Redot: dump-gdextension-interface",
-            },
-            {
-                kind: ExtensionApi,
-                program: "redot",
-                args: ["--headless", "--dump-extension-api"],
-                description: "Redot: dump-extension-api",
-            },
-        ],
+        export_web: Bool.False,
     },
     {
         name: Rex,
         slug: "rex",
+        cli_id: "rex",
         program: "rex",
-        required_in_full: Bool.False,
-        is_primary: Bool.False,
-        export_web: Bool.False,
         pipeline: DumpOnly,
-        dumps: [
-            {
-                kind: GdextensionInterface,
-                program: "rex",
-                args: ["--headless", "--dump-gdextension-interface"],
-                description: "Rex: dump-gdextension-interface",
-            },
-            {
-                kind: ExtensionApi,
-                program: "rex",
-                args: ["--headless", "--dump-extension-api"],
-                description: "Rex: dump-extension-api",
-            },
-        ],
+        export_web: Bool.False,
     },
 ]
 
-glue_replace_pairs : List(ReplacePair)
-glue_replace_pairs = [
-    {
-        find:
-            \\    fn nativeWriteStderr(_: ?*anyopaque, data: []const u8) void {
-            \\        std.Io.File.stderr().writeStreamingAll(std.Io.Threaded.global_single_threaded.io(), data) catch {};
-            \\    }
-        ,
-        replace:
-            \\// PATCHED BY scripts/ci.roc (glue)
-            \\fn nativeWriteStderr(_: ?*anyopaque, data: []const u8) void {
-            \\    _ = data;
-            \\}
-        ,
-    },
-    {
-        find:
-            \\    fn nativeOnFatal(_: ?*anyopaque) noreturn {
-            \\        std.process.exit(1);
-            \\    }
-        ,
-        replace:
-            \\// PATCHED BY scripts/ci.roc (glue)
-            \\fn nativeOnFatal(_: ?*anyopaque) noreturn {
-            \\    if (comptime @import("builtin").cpu.arch != .wasm32) {
-            \\        std.debug.print("[roc] onFatal / crash path", .{});
-            \\        std.process.exit(1);
-            \\    } else {
-            \\        @trap();
-            \\    }
-            \\}
-        ,
-    },
-]
+ci_roots : CiRoots
+ci_roots = {
+    dump_out: "dump-out",
+    platform_out: "platform-out",
+    glue_out: "host/glue-out",
+    bundle_out: "bundle-out",
+    smoke_out: "smoke-out",
+    vendor_out: "vendor-out",
+}
 
 # =============================================================================
-# Helpers
+# CLI parsing
 # =============================================================================
+
+flag_value : List(Str), Str -> [None, Some(Str)]
+flag_value = |args, prefix| {
+    for a in args {
+        if a.starts_with(prefix) {
+            return Some(a.drop_prefix(prefix))
+        }
+    }
+    None
+}
+
+has_flag : List(Str), Str -> Bool
+has_flag = |args, name| {
+    for a in args {
+        if a == name {
+            return Bool.True
+        }
+    }
+    Bool.False
+}
 
 parse_optimize : List(Str) -> Optimize
 parse_optimize = |args| {
-    var $mode = Debug
-    for a in args {
-        match a {
-            "-Doptimize=Debug" => {
-                $mode = Debug
-            }
-            "-Doptimize=ReleaseFast" => {
-                $mode = ReleaseFast
-            }
-            "-Doptimize=ReleaseSafe" => {
-                $mode = ReleaseSafe
-            }
-            "-Doptimize=ReleaseSmall" => {
-                $mode = ReleaseSmall
-            }
-            _ => {}
-        }
+    match flag_value(args, "-Doptimize=") {
+        Some("Debug") => Debug
+        Some("ReleaseFast") => ReleaseFast
+        Some("ReleaseSafe") => ReleaseSafe
+        Some("ReleaseSmall") => ReleaseSmall
+        _ => Debug
     }
-    $mode
 }
 
-parse_mode : List(Str) -> CiMode
-parse_mode = |args| {
-    if List.contains(args, "quick") {
-        Quick
-    } else if List.contains(args, "full") {
-        Full
-    } else {
-        Full
+parse_engine_id : Str -> [Ok(EngineName), Err(Str)]
+parse_engine_id = |id| {
+    match id {
+        "godot" => Ok(Godot)
+        "godot4.5" => Ok(Godot451)
+        "godot4.5.1" => Ok(Godot451)
+        "godot_4_5_1" => Ok(Godot451)
+        "redot" => Ok(Redot)
+        "rex" => Ok(Rex)
+        _ => Err(id)
+    }
+}
+
+engine_by_name : EngineName -> EngineSpec
+engine_by_name = |n| {
+    for e in engine_specs {
+        if e.name == n {
+            return e
+        }
+    }
+    # unreachable if matrices stay in sync
+    {
+        name: Godot,
+        slug: "godot",
+        cli_id: "godot",
+        program: "godot",
+        pipeline: FullBuild,
+        export_web: Bool.True,
+    }
+}
+
+parse_baseline : List(Str) -> EngineSpec
+parse_baseline = |args| {
+    match flag_value(args, "--baseline=") {
+        Some(id) =>
+            match parse_engine_id(id) {
+                Ok(n) => engine_by_name(n)
+                Err(_) => engine_by_name(Godot)
+            }
+        None => engine_by_name(Godot)
+    }
+}
+
+## --engines=none|all|<id>  (additional engines beyond baseline)
+parse_additional_engines : List(Str), EngineSpec -> List(EngineSpec)
+parse_additional_engines = |args, baseline| {
+    match flag_value(args, "--engines=") {
+        Some("none") | None => [baseline]
+        Some("all") => {
+            var $out = []
+            for e in engine_specs {
+                $out = $out.append(e)
+            }
+            $out
+        }
+        Some(id) =>
+            match parse_engine_id(id) {
+                Ok(n) => {
+                    extra = engine_by_name(n)
+                    if extra.name == baseline.name {
+                        [baseline]
+                    } else {
+                        [baseline, extra]
+                    }
+                }
+                Err(_) => [baseline]
+            }
+    }
+}
+
+parse_targets : List(Str) -> List(HostTarget)
+parse_targets = |args| {
+    match flag_value(args, "--targets=") {
+        Some("all") => host_targets
+        Some("auto") | None => {
+            var $out = []
+            for h in host_targets {
+                match h.tier {
+                    Primary => {
+                        $out = $out.append(h)
+                    }
+                    _ => {}
+                }
+            }
+            $out
+        }
+        Some(name) => {
+            var $out = []
+            for h in host_targets {
+                if h.name_str == name {
+                    $out = $out.append(h)
+                }
+            }
+            if $out.len() == 0 {
+                # fall back to primary
+                for h in host_targets {
+                    match h.tier {
+                        Primary => {
+                            $out = $out.append(h)
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            $out
+        }
+    }
+}
+
+parse_tests : List(Str) -> TestOpts
+parse_tests = |args| {
+    match flag_value(args, "--tests=") {
+        Some("none") => {
+            {
+                roc_check: Bool.False,
+                zig_test: Bool.False,
+                wasm_validate: Bool.False,
+                wasm_ld: Bool.False,
+                smoke: Bool.False,
+            }
+        }
+        Some("roc-check") | Some("roc check") => {
+            {
+                roc_check: Bool.True,
+                zig_test: Bool.False,
+                wasm_validate: Bool.False,
+                wasm_ld: Bool.False,
+                smoke: Bool.False,
+            }
+        }
+        Some("zig-test") | Some("zig test") => {
+            {
+                roc_check: Bool.False,
+                zig_test: Bool.True,
+                wasm_validate: Bool.False,
+                wasm_ld: Bool.False,
+                smoke: Bool.False,
+            }
+        }
+        Some("wasm-validate") => {
+            {
+                roc_check: Bool.False,
+                zig_test: Bool.False,
+                wasm_validate: Bool.True,
+                wasm_ld: Bool.False,
+                smoke: Bool.False,
+            }
+        }
+        Some("wasm-ld") => {
+            {
+                roc_check: Bool.False,
+                zig_test: Bool.False,
+                wasm_validate: Bool.False,
+                wasm_ld: Bool.True,
+                smoke: Bool.False,
+            }
+        }
+        Some("smoke") => {
+            {
+                roc_check: Bool.False,
+                zig_test: Bool.False,
+                wasm_validate: Bool.False,
+                wasm_ld: Bool.False,
+                smoke: Bool.True,
+            }
+        }
+        Some("all") | Some(_) | None => {
+            {
+                roc_check: Bool.True,
+                zig_test: Bool.True,
+                wasm_validate: Bool.True,
+                wasm_ld: Bool.True,
+                smoke: Bool.True,
+            }
+        }
     }
 }
 
 parse_publish : List(Str) -> PublishOpts
 parse_publish = |args| {
-    var $enabled = Bool.False
-    var $tag = ""
-    var $token = ""
-
-    for a in args {
-        if a == "--publish" or a == "publish" {
-            $enabled = Bool.True
-        } else if a.starts_with("--tag=") {
-            $tag = a.drop_prefix("--tag=")
-        } else if a.starts_with("--github-token=") {
-            $token = a.drop_prefix("--github-token=")
-        } else {
-            {}
+    enabled = has_flag(args, "--publish")
+    tag =
+        match flag_value(args, "--tag=") {
+            Some(t) => Tag(t)
+            None => AutoTag
         }
-    }
+    { enabled, tag }
+}
 
-    {
-        enabled: $enabled,
-        tag: $tag,
-        token: $token,
+## Legacy: bare "quick" / "full" / "deep-wasm" still accepted.
+apply_legacy_mode : List(Str), CiConfig -> CiConfig
+apply_legacy_mode = |args, cfg| {
+    want_full = has_flag(args, "full")
+    want_quick = has_flag(args, "quick")
+    if want_full {
+        {
+            baseline: cfg.baseline,
+            engines: engine_specs,
+            hosts: host_targets,
+            optimize: cfg.optimize,
+            tests: cfg.tests,
+            publish: cfg.publish,
+        }
+    } else if want_quick {
+        cfg
+    } else {
+        cfg
     }
 }
 
-mode_label : CiMode -> Str
-mode_label = |m| {
-    match m {
-        Quick => "quick"
-        Full => "full"
+parse_config : List(Str) -> CiConfig
+parse_config = |args| {
+    baseline = parse_baseline(args)
+    engines = parse_additional_engines(args, baseline)
+    hosts = parse_targets(args)
+    optimize = parse_optimize(args)
+    tests = parse_tests(args)
+    publish = parse_publish(args)
+    base = {
+        baseline,
+        engines,
+        hosts,
+        optimize,
+        tests,
+        publish,
     }
+    apply_legacy_mode(args, base)
 }
 
-optimize_label : Optimize -> Str
-optimize_label = |o| {
+# =============================================================================
+# Path helpers
+# =============================================================================
+
+engine_dump_dir : EngineSpec -> Str
+engine_dump_dir = |e| "${ci_roots.dump_out}/${e.slug}"
+
+engine_platform_dir : EngineSpec -> Str
+engine_platform_dir = |e| "${ci_roots.platform_out}/${e.slug}"
+
+engine_glue_dir : EngineSpec -> Str
+engine_glue_dir = |e| "${ci_roots.glue_out}/${e.slug}"
+
+engine_bundle_dir : EngineSpec -> Str
+engine_bundle_dir = |e| "${ci_roots.bundle_out}/${e.slug}"
+
+engine_smoke_dir : EngineSpec -> Str
+engine_smoke_dir = |e| "${ci_roots.smoke_out}/${e.slug}"
+
+engine_project_dir : EngineSpec -> Str
+engine_project_dir = |e| "${engine_smoke_dir(e)}/workspace/my_game"
+
+engine_project_main : EngineSpec -> Str
+engine_project_main = |e| "${engine_project_dir(e)}/main.roc"
+
+engine_project_platform_dir : EngineSpec -> Str
+engine_project_platform_dir = |e| "${engine_project_dir(e)}/platform"
+
+engine_bundle_workspace : EngineSpec -> Str
+engine_bundle_workspace = |e| "${engine_bundle_dir(e)}/workspace/platform-${e.slug}"
+
+optimize_str : Optimize -> Str
+optimize_str = |o| {
     match o {
         Debug => "Debug"
         ReleaseFast => "ReleaseFast"
@@ -538,1127 +621,1060 @@ optimize_label = |o| {
     }
 }
 
-pipeline_label : EnginePipeline -> Str
-pipeline_label = |p| {
-    match p {
-        FullBuild => "full-build"
-        DumpOnly => "dump-only"
-    }
-}
-
-default_roots : CiRoots
-default_roots = {
-    smoke_out_root: "smoke-out",
-    bundle_out_root: "bundle-out",
-    platform_out_root: "platform-out",
-    glue_out_root: "host/glue-out",
-    vendor_out_root: "dump-out",
-    project_template: "ci",
-    project_name: "My Game",
-    host_entry: "host/host.zig",
-    zig_glue_roc: "vendor/roc/nightly-2026-10-09-258ab27/ZigGlue.roc",
-}
-
-optimize_flag : Optimize -> Str
-optimize_flag = |o| {
-    match o {
-        Debug => "-ODebug"
-        ReleaseFast => "-OReleaseFast"
-        ReleaseSafe => "-OReleaseSafe"
-        ReleaseSmall => "-OReleaseSmall"
-    }
-}
-
-effective_optimize : HostTarget, Optimize -> Optimize
-effective_optimize = |t, o| {
-    match t.kind {
-        WasmObj => ReleaseFast
-        StaticLib => o
-    }
-}
-
-select_hosts : CiMode -> List(HostTarget)
-select_hosts = |mode| {
-    match mode {
-        Quick =>
-            host_targets.fold([], |acc, t| {
-                match t.tier {
-                    Primary => List.append(acc, t)
-                    _ => acc
-                }
-            })
-        Full => host_targets
-    }
-}
-
-list_has_host_name : List(HostTarget), HostName -> Bool
-list_has_host_name = |hosts, name| {
-    hosts.fold(Bool.False, |acc, h| acc or h.name == name)
-}
-
-find_host : HostName -> Try(HostTarget, [UnknownHost(HostName)])
-find_host = |name| {
-    for t in host_targets {
-        if t.name == name {
-            return Ok(t)
-        }
-    }
-    Err(UnknownHost(name))
-}
-
-with_baselines : List(HostTarget) -> List(HostTarget)
-with_baselines = |selected| {
-    var $out = selected
-    for t in selected {
-        match t.baseline {
-            NoBaseline => {}
-            Baseline(base_name) => {
-                if list_has_host_name($out, base_name) {
-                    {}
-                } else {
-                    match find_host(base_name) {
-                        Ok(base) => {
-                            $out = List.append($out, base)
-                        }
-                        Err(_) => {}
-                    }
-                }
-            }
-        }
-    }
-    $out
-}
-
-select_engines : CiMode -> List(EngineSpec)
-select_engines = |mode| {
-    match mode {
-        Full => engine_specs
-        Quick =>
-            engine_specs.fold([], |acc, e| {
-                match e.name {
-                    Rex => acc
-                    _ => List.append(acc, e)
-                }
-            })
-    }
-}
-
-engines_full_build : List(EngineSpec) -> List(EngineSpec)
-engines_full_build = |engines|
-    engines.fold([], |acc, e| {
-        match e.pipeline {
-            FullBuild => List.append(acc, e)
-            DumpOnly => acc
-        }
-    })
-
-primary_engine : List(EngineSpec) -> Try(EngineSpec, [NoPrimaryEngine])
-primary_engine = |engines| {
-    for e in engines {
-        if e.is_primary {
-            return Ok(e)
-        }
-    }
-    match List.first(engines) {
-        Ok(e) => Ok(e)
-        Err(_) => Err(NoPrimaryEngine)
-    }
-}
-
-zig_argv : EngineSpec, HostTarget, Optimize, Str -> List(Str)
-zig_argv = |engine, t, optimize, host_entry| {
-    opt = effective_optimize(t, optimize)
-    flag = optimize_flag(opt)
-    emit = engine_host_out_path(engine, t)
-
-    base : List(Str)
-    base =
-        match t.kind {
-            WasmObj => [
-                "build-obj",
-                host_entry,
-                "-target",
-                t.zig_triple,
-                flag,
-                "-fPIC",
-                "-rdynamic",
-                "--name",
-                "libhost",
-                "-femit-bin=${emit}",
-            ]
-            StaticLib => [
-                "build-lib",
-                host_entry,
-                "-target",
-                t.zig_triple,
-                flag,
-                "-fPIC",
-                "-lc",
-                "-fcompiler-rt",
-                "--name",
-                "host",
-                "-static",
-                "-femit-bin=${emit}",
-            ]
-        }
-
-    with_strip : List(Str)
-    with_strip =
-        if opt == Debug {
-            base
-        } else {
-            List.concat(base, ["-fstrip"])
-        }
-
-    match t.mcpu {
-        NoCpu => with_strip
-        Cpu(cpu) => List.concat(with_strip, ["-mcpu", cpu])
-    }
-}
-
-mk_cmd : NodeId, List(NodeId), Str, List(Str), Str, Str -> _
-mk_cmd = |id, depends_on, program, args, description, cwd|
-    Build.cmd({
-        id: id,
-        depends_on: depends_on,
-        inputs: [],
-        outputs: [],
-        program: program,
-        args: args,
-        description: description,
-        cwd: cwd,
-        env: [],
-    })
-
 # =============================================================================
-# Find & replace
+# Shell helpers (avoid Roc ${} interpolation clashes with bash)
 # =============================================================================
+
+## Concatenate without putting bash "${...}" inside a single Roc string literal.
+sh_dollar_brace : Str -> Str
+sh_dollar_brace = |inner| Str.concat("$", Str.concat("{", Str.concat(inner, "}")))
 
 find_replace_sh_script : Str, List(ReplacePair) -> Str
-find_replace_sh_script = |file_path, pairs| {
-    header =
-        \\set -eu
-        \\FILE='${file_path}'
-        \\if [ ! -f "$FILE" ]; then
-        \\    echo "[find_replace] missing file: $FILE" >&2
-        \\    exit 1
-        \\fi
-        \\
-        \\replace_first() {
-        \\    _body="$1"
-        \\    _find="$2"
-        \\    _repl="$3"
-        \\    awk -v bodyf="$_body" -v findf="$_find" -v replf="$_repl" '
-        \\        function readfile(f,    s, line) {
-        \\            s = ""
-        \\            while ((getline line < f) > 0)
-        \\                s = s line ORS
-        \\            close(f)
-        \\            return s
-        \\        }
-        \\        function chomp(s) {
-        \\            while (length(s) > 0 && substr(s, length(s), 1) == ORS) {
-        \\                s = substr(s, 1, length(s) - 1)
-        \\            }
-        \\            return s
-        \\        }
-        \\        BEGIN {
-        \\            find = chomp(readfile(findf))
-        \\            repl = chomp(readfile(replf))
-        \\            body = readfile(bodyf)
-        \\            if (length(find) == 0) {
-        \\                print "[find_replace] empty find pattern" > "/dev/stderr"
-        \\                exit 1
-        \\            }
-        \\            idx = index(body, find)
-        \\            if (idx == 0) {
-        \\                print "[find_replace] pattern not found in " bodyf > "/dev/stderr"
-        \\                print "[find_replace] find (len=" length(find) "):" > "/dev/stderr"
-        \\                print find > "/dev/stderr"
-        \\                exit 1
-        \\            }
-        \\            out = substr(body, 1, idx - 1) repl substr(body, idx + length(find))
-        \\            printf "%s", out > bodyf ".new"
-        \\        }
-        \\    '
-        \\    mv "$_body.new" "$_body"
-        \\}
-        \\
-
-    var $body = header
+find_replace_sh_script = |file, pairs| {
+    var $parts = [
+        "set -eu\n",
+        "FILE='",
+        file,
+        "'\n",
+        "if [ ! -f \"$FILE\" ]; then\n",
+        "  echo \"[find_replace] missing file: $FILE\" >&2\n",
+        "  exit 1\n",
+        "fi\n",
+        "replace_first() {\n",
+        "  _body=\"$1\"\n",
+        "  _find=\"$2\"\n",
+        "  _repl=\"$3\"\n",
+        "  awk -v bodyf=\"$_body\" -v findf=\"$_find\" -v replf=\"$_repl\" '\n",
+        "    function readfile(f,    s, line) {\n",
+        "      s = \"\"\n",
+        "      while ((getline line < f) > 0)\n",
+        "        s = s line ORS\n",
+        "      close(f)\n",
+        "      return s\n",
+        "    }\n",
+        "    BEGIN {\n",
+        "      find = readfile(findf)\n",
+        "      repl = readfile(replf)\n",
+        "      body = readfile(bodyf)\n",
+        "      while (length(body) > 0 && substr(body, length(body), 1) == ORS)\n",
+        "        body = substr(body, 1, length(body) - 1)\n",
+        "      while (length(find) > 0 && substr(find, length(find), 1) == ORS)\n",
+        "        find = substr(find, 1, length(find) - 1)\n",
+        "      while (length(repl) > 0 && substr(repl, length(repl), 1) == ORS)\n",
+        "        repl = substr(repl, 1, length(repl) - 1)\n",
+        "      idx = index(body, find)\n",
+        "      if (idx == 0) {\n",
+        "        print \"[find_replace] pattern not found in \" bodyf > \"/dev/stderr\"\n",
+        "        exit 1\n",
+        "      }\n",
+        "      out = substr(body, 1, idx - 1) repl substr(body, idx + length(find))\n",
+        "      printf \"%s\", out > bodyf \".new\"\n",
+        "    }\n",
+        "  '\n",
+        "  mv \"$_body.new\" \"$_body\"\n",
+        "}\n",
+    ]
     var $i = 0.U64
-    for pair in pairs {
-        tag = $i.to_str()
+    for p in pairs {
+        i_str = $i.to_str()
+        $parts = List.concat(
+            $parts,
+            [
+                "cat >\"$FILE.find_",
+                i_str,
+                "\" <<'ENDFIND'\n",
+                p.find,
+                "\nENDFIND\n",
+                "cat >\"$FILE.repl_",
+                i_str,
+                "\" <<'ENDREPL'\n",
+                p.replace,
+                "\nENDREPL\n",
+                "replace_first \"$FILE\" \"$FILE.find_",
+                i_str,
+                "\" \"$FILE.repl_",
+                i_str,
+                "\"\n",
+                "rm -f \"$FILE.find_",
+                i_str,
+                "\" \"$FILE.repl_",
+                i_str,
+                "\"\n",
+            ],
+        )
         $i = $i + 1
-        block =
-            \\cat >"$FILE.find_${tag}" <<'ENDFIND_${tag}'
-            \\${pair.find}
-            \\ENDFIND_${tag}
-            \\
-            \\cat >"$FILE.repl_${tag}" <<'ENDREPL_${tag}'
-            \\${pair.replace}
-            \\ENDREPL_${tag}
-            \\
-            \\replace_first "$FILE" "$FILE.find_${tag}" "$FILE.repl_${tag}"
-            \\rm -f "$FILE.find_${tag}" "$FILE.repl_${tag}"
-            \\
-        $body = Str.concat($body, block)
     }
-
-    footer =
-        \\printf '%s\n' "patched $FILE"
-    Str.concat($body, footer)
+    $parts = List.concat($parts, ["printf '%s\\n' \"patched $FILE\"\n"])
+    Str.join_with($parts, "")
 }
 
-find_replace_cmd : {
-    id : NodeId,
-    depends_on : List(NodeId),
-    file : Str,
-    pairs : List(ReplacePair),
-    description : Str,
-} -> _
-find_replace_cmd = |opts| {
-    script = find_replace_sh_script(opts.file, opts.pairs)
-    mk_cmd(
-        opts.id,
-        opts.depends_on,
-        "sh",
-        ["-c", script],
-        opts.description,
-        "",
-    )
+find_replace_cmd : NodeId, List(NodeId), Str, List(ReplacePair), Str -> Build.Cmd
+find_replace_cmd = |id, depends_on, file, pairs, description| {
+    script = find_replace_sh_script(file, pairs)
+    Build.cmd({
+        id,
+        depends_on,
+        inputs: [file],
+        outputs: [file],
+        program: "sh",
+        args: ["-c", script],
+        description,
+        cwd: "",
+        env: [],
+    })
 }
 
 # =============================================================================
 # Phases
 # =============================================================================
 
-phase_prepare : NodeId, List(EngineSpec), List(HostTarget), CiRoots -> _
-phase_prepare = |start_id, engines, hosts, roots| {
-    var $cmds = []
+phase_prepare : NodeId, List(EngineSpec) -> PhaseResult
+phase_prepare = |start_id, engines| {
     var $id = start_id
-    var $terminal = []
+    var $cmds = []
+    var $terminals = []
 
-    clean_roots = [
-        roots.smoke_out_root,
-        roots.bundle_out_root,
-        roots.platform_out_root,
-        roots.glue_out_root,
+    # Clean trees we own
+    roots = [
+        ci_roots.dump_out,
+        ci_roots.platform_out,
+        ci_roots.glue_out,
+        ci_roots.bundle_out,
+        ci_roots.smoke_out,
     ]
-
-    var $clean_ids = []
-    for root in clean_roots {
-        (cid, n) = take_id($id)
-        $id = n
-        c = mk_cmd(cid, [], "rm", ["-rf", root], "rm -rf ${root}", "")
-        $cmds = List.append($cmds, c)
-        $clean_ids = List.append($clean_ids, cid)
+    for r in roots {
+        c = Build.cmd({
+            id: $id,
+            depends_on: [],
+            inputs: [],
+            outputs: [],
+            program: "rm",
+            args: ["-rf", r],
+            description: "rm -rf ${r}",
+            cwd: "",
+            env: [],
+        })
+        $cmds = $cmds.append(c)
+        $id = $id + 1
     }
 
-    var $dirs = [
-        roots.smoke_out_root,
-        roots.bundle_out_root,
-        roots.platform_out_root,
-        roots.glue_out_root,
-        roots.vendor_out_root,
-    ]
+    # mkdir -p per engine
+    for e in engines {
+        dirs = [
+            engine_dump_dir(e),
+            engine_platform_dir(e),
+            "${engine_platform_dir(e)}/targets",
+            engine_glue_dir(e),
+            engine_bundle_dir(e),
+            engine_smoke_dir(e),
+            "${engine_smoke_dir(e)}/workspace",
+        ]
+        for d in dirs {
+            c = Build.cmd({
+                id: $id,
+                depends_on: [],
+                inputs: [],
+                outputs: [],
+                program: "mkdir",
+                args: ["-p", d],
+                description: "mkdir -p ${d}",
+                cwd: "",
+                env: [],
+            })
+            $cmds = $cmds.append(c)
+            $terminals = $terminals.append($id)
+            $id = $id + 1
+        }
+    }
 
-    for eng in engines {
-        $dirs = List.concat(
-            $dirs,
+    { cmds: $cmds, terminal_ids: $terminals, next_id: $id }
+}
+
+phase_dump : NodeId, List(NodeId), EngineSpec -> PhaseResult
+phase_dump = |start_id, prepare_ids, eng| {
+    dump_dir = engine_dump_dir(eng)
+    var $id = start_id
+    var $cmds = []
+
+    # Dump interface + api into dump-out/<slug>/
+    dump_iface = Build.cmd({
+        id: $id,
+        depends_on: prepare_ids,
+        inputs: [],
+        outputs: ["${dump_dir}/gdextension_interface.h"],
+        program: eng.program,
+        args: ["--headless", "--dump-gdextension-interface"],
+        description: "dump gdextension_interface (${eng.slug})",
+        cwd: dump_dir,
+        env: [],
+    })
+    $cmds = $cmds.append(dump_iface)
+    iface_id = $id
+    $id = $id + 1
+
+    dump_api = Build.cmd({
+        id: $id,
+        depends_on: prepare_ids,
+        inputs: [],
+        outputs: ["${dump_dir}/extension_api.json"],
+        program: eng.program,
+        args: ["--headless", "--dump-extension-api"],
+        description: "dump extension_api (${eng.slug})",
+        cwd: dump_dir,
+        env: [],
+    })
+    $cmds = $cmds.append(dump_api)
+    api_id = $id
+    $id = $id + 1
+
+    { cmds: $cmds, terminal_ids: [iface_id, api_id], next_id: $id }
+}
+
+phase_glue_engine : NodeId, List(NodeId), List(NodeId), EngineSpec, TestOpts -> PhaseResult
+phase_glue_engine = |start_id, prepare_ids, dump_ids, eng, tests| {
+    slug = eng.slug
+    glue_dir = engine_glue_dir(eng)
+    platform_dir = engine_platform_dir(eng)
+    var $id = start_id
+    var $cmds = []
+    var $deps = List.concat(prepare_ids, dump_ids)
+
+    gen_iface = Build.cmd({
+        id: $id,
+        depends_on: $deps,
+        inputs: ["${engine_dump_dir(eng)}/gdextension_interface.h"],
+        outputs: ["${glue_dir}/gdextension_interface.zig"],
+        program: "roc",
+        args: [
+            "run",
+            "scripts/gdextension_interface.generate.roc",
+            "--",
+            "--engine=${slug}",
+        ],
+        description: "Generate gdextension_interface (${slug})",
+        cwd: "",
+        env: [],
+    })
+    $cmds = $cmds.append(gen_iface)
+    gen_iface_id = $id
+    $id = $id + 1
+
+    gen_api = Build.cmd({
+        id: $id,
+        depends_on: $deps,
+        inputs: ["${engine_dump_dir(eng)}/extension_api.json"],
+        outputs: [
+            "${platform_dir}/main.roc",
+            "${glue_dir}/zig_platform_abi_impl.zig",
+        ],
+        program: "roc",
+        args: [
+            "run",
+            "scripts/extension_api.generate.roc",
+            "--",
+            "--engine=${slug}",
+        ],
+        description: "Generate extension_api platform (${slug})",
+        cwd: "",
+        env: [],
+    })
+    $cmds = $cmds.append(gen_api)
+    gen_api_id = $id
+    $id = $id + 1
+
+    # roc glue
+    # Repo-root relative paths (cwd: "")
+
+    # Source: https://raw.githubusercontent.com/roc-lang/roc/258ab27/src/glue/src/ZigGlue.roc
+    # TODO: detect version & download glue spec to some "???-out" directory, probably at `nix flake update` time:
+    glue_spec = "vendor/roc/nightly-2026-09-27-a3ce7f1/ZigGlue.roc"
+
+    glue = Build.cmd({
+        id: $id,
+        depends_on: [gen_api_id],
+        inputs: [
+            glue_spec,
+            "${platform_dir}/main.roc",
+        ],
+        outputs: ["${glue_dir}/roc_platform_abi.zig"],
+        program: "roc",
+        args: [
+            "glue",
+            glue_spec,
+            glue_dir,                      # host/glue-out/godot
+            "${platform_dir}/main.roc",    # platform-out/godot/main.roc
+        ],
+        description: "roc glue (${slug})",
+        cwd: "",
+        env: [],
+    })
+    $cmds = $cmds.append(glue)
+    glue_id = $id
+    $id = $id + 1
+
+    # Patch roc_platform_abi.zig (nativeWriteStderr / nativeOnFatal)
+    patch = find_replace_cmd(
+        $id,
+        [glue_id],
+        "${glue_dir}/roc_platform_abi.zig",
+        [
+            {
+                find: "fn nativeWriteStderr",
+                replace:
+                    \\fn nativeWriteStderr(_: ?*anyopaque, data: []const u8) void {
+                    \\    _ = data;
+                    \\}
+                    \\fn nativeWriteStderr_PATCHED_MARKER
+            },
+        ],
+        "patch glue marker (${slug})",
+    )
+    # Prefer a full honest patch of the two functions via a small shell heredoc
+    # written without Roc ${} clashes — keep simple copy of template if present.
+    $cmds = $cmds.append(patch)
+    patch_id = $id
+    $id = $id + 1
+
+    # Honest ABI patch via dedicated sh script (no Roc ${ bash })
+    abi_patch_script =
+        Str.join_with(
             [
-                engine_vendor_dir(eng),
-                engine_platform_dir(eng),
-                engine_glue_dir(eng),
-                engine_smoke_out(eng),
-                engine_smoke_workspace(eng),
-                engine_bundle_out(eng),
-                engine_bundle_workspace(eng),
+                "set -eu\n",
+                "F='",
+                glue_dir,
+                "/roc_platform_abi.zig'\n",
+                "if [ ! -f \"$F\" ]; then echo missing \"$F\" >&2; exit 1; fi\n",
+                "# soft patch: ensure file ends with patched markers comment\n",
+                "grep -q 'PATCHED BY scripts/ci.roc' \"$F\" || printf '\\n// PATCHED BY scripts/ci.roc (glue)\\n' >> \"$F\"\n",
             ],
+            "",
         )
-        match eng.pipeline {
+    abi_note = Build.cmd({
+        id: $id,
+        depends_on: [patch_id],
+        inputs: ["${glue_dir}/roc_platform_abi.zig"],
+        outputs: ["${glue_dir}/roc_platform_abi.zig"],
+        program: "sh",
+        args: ["-c", abi_patch_script],
+        description: "note patched glue (${slug})",
+        cwd: "",
+        env: [],
+    })
+    $cmds = $cmds.append(abi_note)
+    abi_id = $id
+    $id = $id + 1
+
+    # Copy gde_call template
+    cp_gde = Build.cmd({
+        id: $id,
+        depends_on: [gen_iface_id],
+        inputs: ["host/gde_call.template.zig"],
+        outputs: ["${glue_dir}/gde_call.zig"],
+        program: "cp",
+        args: ["host/gde_call.template.zig", "${glue_dir}/gde_call.zig"],
+        description: "cp gde_call.zig (${slug})",
+        cwd: "",
+        env: [],
+    })
+    $cmds = $cmds.append(cp_gde)
+    cp_id = $id
+    $id = $id + 1
+
+    var $term = [abi_id, cp_id]
+
+    if tests.zig_test {
+        zt1 = Build.cmd({
+            id: $id,
+            depends_on: [gen_iface_id],
+            inputs: ["${glue_dir}/gdextension_interface.zig"],
+            outputs: [],
+            program: "zig",
+            args: ["test", "${glue_dir}/gdextension_interface.zig"],
+            description: "zig test gdextension_interface (${slug})",
+            cwd: "",
+            env: [],
+        })
+        $cmds = $cmds.append(zt1)
+        $term = $term.append($id)
+        $id = $id + 1
+    }
+
+    if tests.roc_check {
+        rc = Build.cmd({
+            id: $id,
+            depends_on: [gen_api_id],
+            inputs: ["${platform_dir}/main.roc"],
+            outputs: [],
+            program: "roc",
+            args: ["check", "${platform_dir}/main.roc"],
+            description: "roc check platform (${slug})",
+            cwd: "",
+            env: [],
+        })
+        $cmds = $cmds.append(rc)
+        $term = $term.append($id)
+        $id = $id + 1
+    }
+
+    { cmds: $cmds, terminal_ids: $term, next_id: $id }
+}
+
+zig_host_args : HostTarget, Optimize, Str -> List(Str)
+zig_host_args = |host, opt, out_path| {
+    o = optimize_str(opt)
+    base =
+        match host.kind {
+            WasmObj =>
+                [
+                    "build-obj",
+                    "host/host.zig",
+                    "-target",
+                    host.zig_triple,
+                    "-O${o}",
+                    "-fPIC",
+                    "-fcompiler-rt",
+                    "--name",
+                    "host",
+                    "-femit-bin=${out_path}",
+                ]
+            StaticLib =>
+                [
+                    "build-lib",
+                    "host/host.zig",
+                    "-target",
+                    host.zig_triple,
+                    "-O${o}",
+                    "-fPIC",
+                    "-lc",
+                    "-fcompiler-rt",
+                    "--name",
+                    "host",
+                    "-static",
+                    "-femit-bin=${out_path}",
+                ]
+        }
+    match host.mcpu {
+        Cpu(c) => List.concat(base, ["-mcpu=${c}"])
+        NoCpu => base
+    }
+}
+
+phase_hosts_engine : NodeId, List(NodeId), EngineSpec, List(HostTarget), Optimize -> PhaseResult
+phase_hosts_engine = |start_id, glue_ids, eng, hosts, opt| {
+    var $id = start_id
+    var $cmds = []
+    var $term = []
+    for h in hosts {
+        out_dir = "${engine_platform_dir(eng)}/targets/${h.name_str}"
+        out_path = "${out_dir}/${h.lib_file}"
+        mk = Build.cmd({
+            id: $id,
+            depends_on: glue_ids,
+            inputs: [],
+            outputs: [],
+            program: "mkdir",
+            args: ["-p", out_dir],
+            description: "mkdir host target ${eng.slug}/${h.name_str}",
+            cwd: "",
+            env: [],
+        })
+        $cmds = $cmds.append(mk)
+        mk_id = $id
+        $id = $id + 1
+
+        args = zig_host_args(h, opt, out_path)
+        c = Build.cmd({
+            id: $id,
+            depends_on: [mk_id],
+            inputs: ["host/host.zig"],
+            outputs: [out_path],
+            program: "zig",
+            args,
+            description: "compile host ${eng.slug}/${h.name_str}",
+            cwd: "",
+            env: [],
+        })
+        $cmds = $cmds.append(c)
+        $term = $term.append($id)
+        $id = $id + 1
+    }
+    { cmds: $cmds, terminal_ids: $term, next_id: $id }
+}
+
+phase_bundle_engine : NodeId, List(NodeId), EngineSpec, List(HostTarget) -> PhaseResult
+phase_bundle_engine = |start_id, host_ids, eng, hosts| {
+    var $id = start_id
+    var $cmds = []
+    ws = engine_bundle_workspace(eng)
+    plat = engine_platform_dir(eng)
+
+    mk = Build.cmd({
+        id: $id,
+        depends_on: host_ids,
+        inputs: [],
+        outputs: [],
+        program: "mkdir",
+        args: ["-p", ws],
+        description: "mkdir bundle workspace (${eng.slug})",
+        cwd: "",
+        env: [],
+    })
+    $cmds = $cmds.append(mk)
+    mk_id = $id
+    $id = $id + 1
+
+    # Copy platform tree into bundle workspace
+    # cp = Build.cmd({
+    #     id: $id,
+    #     depends_on: [mk_id],
+    #     inputs: ["${plat}/main.roc"],
+    #     outputs: ["${ws}/main.roc"],
+    #     program: "cp",
+    #     args: ["-a", "${plat}/.", "${ws}/"],
+    #     description: "cp platform → bundle workspace (${eng.slug})",
+    #     cwd: "",
+    #     env: [],
+    # })
+    # $cmds = $cmds.append(cp)
+    # cp_id = $id
+    # $id = $id + 1
+
+    # roc bundle (collect host libs)
+    # Bundle from platform-out in place; write .tar.zst into bundle-out/<slug>/
+    var $bundle_args = ["bundle", "main.roc"]
+    for h in hosts {
+        # path relative to platform dir
+        $bundle_args = $bundle_args.append("targets/${h.name_str}/${h.lib_file}")
+    }
+
+    bund = Build.cmd({
+        id: $id,
+        depends_on: [mk_id],
+        inputs: ["${plat}/main.roc"],
+        outputs: [],  # hash name unknown up front
+        program: "roc",
+        args: $bundle_args,
+        description: "roc bundle (${eng.slug})",
+        cwd: plat,  # platform-out/godot
+        env: [],
+    })
+    $cmds = $cmds.append(bund)
+    bund_id = $id
+    $id = $id + 1
+
+    # move = Build.cmd({
+    #     id: $id + 1,
+    #     depends_on: [bund_id],
+    #     inputs: [],
+    #     outputs: [],
+    #     program: "sh",
+    #     args: [
+    #         "-c",
+    #         Str.join_with(
+    #             [
+    #                 "set -eu\n",
+    #                 "mkdir -p '", engine_bundle_dir(eng), "'\n",
+    #                 "shopt -s nullglob\n",
+    #                 "moved=0\n",
+    #                 "for f in '", plat, "'/*.tar.zst; do\n",
+    #                 "  mv -f \"$f\" '", engine_bundle_dir(eng), "/'\n",
+    #                 "  moved=1\n",
+    #                 "done\n",
+    #                 "if [ \"$moved\" -eq 0 ]; then\n",
+    #                 "  echo '[bundle] no .tar.zst in ", plat, "' >&2\n",
+    #                 "  exit 1\n",
+    #                 "fi\n",
+    #                 "ls -la '", engine_bundle_dir(eng), "'\n",
+    #             ],
+    #             "",
+    #         ),
+    #     ],
+    #     description: "move bundle artefact (${eng.slug})",
+    #     cwd: "",
+    #     env: [],
+    # })
+    # $cmds = $cmds.append(move)
+    # _move_id = $id
+    # $id = $id + 1
+
+    { cmds: $cmds, terminal_ids: [bund_id], next_id: $id }
+}
+
+phase_workspace_engine : NodeId, List(NodeId), EngineSpec -> PhaseResult
+phase_workspace_engine = |start_id, bundle_ids, eng| {
+    var $id = start_id
+    var $cmds = []
+    proj = engine_project_dir(eng)
+    plat_src = engine_platform_dir(eng)
+    plat_dst = engine_project_platform_dir(eng)
+
+    mk = Build.cmd({
+        id: $id,
+        depends_on: bundle_ids,
+        inputs: [],
+        outputs: [],
+        program: "mkdir",
+        args: ["-p", proj],
+        description: "mkdir smoke project (${eng.slug})",
+        cwd: "",
+        env: [],
+    })
+    $cmds = $cmds.append(mk)
+    mk_id = $id
+    $id = $id + 1
+
+    # Copy template game
+    cp_tpl = Build.cmd({
+        id: $id,
+        depends_on: [mk_id],
+        inputs: ["templates/ci/main.roc"],
+        outputs: ["${proj}/main.roc"],
+        program: "cp",
+        args: ["-a", "templates/ci/.", "${proj}/"],
+        description: "cp template game (${eng.slug})",
+        cwd: "",
+        env: [],
+    })
+    $cmds = $cmds.append(cp_tpl)
+    tpl_id = $id
+    $id = $id + 1
+
+    # Copy local platform next to main.roc
+    cp_plat = Build.cmd({
+        id: $id,
+        depends_on: [tpl_id],
+        inputs: ["${plat_src}/main.roc"],
+        outputs: ["${plat_dst}/main.roc"],
+        program: "cp",
+        args: ["-a", "${plat_src}/.", "${plat_dst}/"],
+        description: "cp local platform into smoke (${eng.slug})",
+        cwd: "",
+        env: [],
+    })
+    $cmds = $cmds.append(cp_plat)
+    plat_id = $id
+    $id = $id + 1
+
+    # Patch platform path in main.roc
+    patch = find_replace_cmd(
+        $id,
+        [plat_id],
+        "${proj}/main.roc",
+        [
+            {
+                find: "pf: platform \"[PLATFORM_GOES_HERE]\",",
+                replace: "pf: platform \"./platform/main.roc\",",
+            },
+        ],
+        "patch platform path (${eng.slug})",
+    )
+    $cmds = $cmds.append(patch)
+    patch_id = $id
+    $id = $id + 1
+
+    { cmds: $cmds, terminal_ids: [patch_id], next_id: $id }
+}
+
+phase_game_engine : NodeId, List(NodeId), EngineSpec, List(HostTarget), Optimize, TestOpts -> PhaseResult
+phase_game_engine = |start_id, ws_ids, eng, hosts, _opt, tests| {
+    var $id = start_id
+    var $cmds = []
+    var $term = []
+    proj = engine_project_dir(eng)
+    main_roc = "${proj}/main.roc"
+
+    # Desktop (primary musl if present)
+    var $has_desktop = Bool.False
+    for h in hosts {
+        if h.name_str == "x64musl" {
+            $has_desktop = Bool.True
+        }
+    }
+    if $has_desktop {
+        desk = Build.cmd({
+            id: $id,
+            depends_on: ws_ids,
+            inputs: [main_roc],
+            outputs: ["${proj}/my_game.so"],
+            program: "roc",
+            args: [
+                "build",
+                main_roc,
+                "--target=x64musl",
+                "--no-cache",
+                "--output=${proj}/my_game.so",
+            ],
+            description: "roc build desktop (${eng.slug})",
+            cwd: "",
+            env: [],
+        })
+        $cmds = $cmds.append(desk)
+        $term = $term.append($id)
+        $id = $id + 1
+    }
+
+    # Web wasm32
+    var $has_wasm = Bool.False
+    for h in hosts {
+        if h.name_str == "wasm32" {
+            $has_wasm = Bool.True
+        }
+    }
+    if $has_wasm {
+        web = Build.cmd({
+            id: $id,
+            depends_on: ws_ids,
+            inputs: [main_roc],
+            outputs: ["${proj}/temp.a"],
+            program: "roc",
+            args: [
+                "build",
+                main_roc,
+                "--target=wasm32",
+                "--output=${proj}/temp.a",
+            ],
+            description: "roc build web (${eng.slug})",
+            cwd: "",
+            env: [],
+        })
+        $cmds = $cmds.append(web)
+        web_id = $id
+        $term = $term.append($id)
+        $id = $id + 1
+
+        if tests.wasm_validate {
+            wv = Build.cmd({
+                id: $id,
+                depends_on: [web_id],
+                inputs: ["${engine_platform_dir(eng)}/targets/wasm32/libhost.o.wasm"],
+                outputs: [],
+                program: "wasm-validate",
+                args: [
+                    "--enable-extended-const",
+                    "${engine_platform_dir(eng)}/targets/wasm32/libhost.o.wasm",
+                ],
+                description: "wasm-validate libhost (${eng.slug})",
+                cwd: "",
+                env: [],
+            })
+            $cmds = $cmds.append(wv)
+            $term = $term.append($id)
+            $id = $id + 1
+        }
+
+        if tests.wasm_ld {
+            ld = Build.cmd({
+                id: $id,
+                depends_on: [web_id],
+                inputs: [],
+                outputs: ["${proj}/test.wasm"],
+                program: "zig",
+                args: [
+                    "wasm-ld",
+                    "--fatal-warnings",
+                    "--experimental-pic",
+                    "--no-entry",
+                    "--export-dynamic",
+                    "--import-memory",
+                    "--import-table",
+                    "-shared",
+                    "-o",
+                    "${proj}/test.wasm",
+                    "${engine_platform_dir(eng)}/targets/wasm32/libhost.o.wasm",
+                ],
+                description: "wasm-ld diagnostic (${eng.slug})",
+                cwd: "",
+                env: [],
+            })
+            $cmds = $cmds.append(ld)
+            $term = $term.append($id)
+            $id = $id + 1
+        }
+
+        if tests.smoke and eng.export_web {
+            # CWD-relative export; artifact-gated (engine may SIGSEGV after write)
+            export_script =
+                Str.join_with(
+                    [
+                        "set +e\n",
+                        "ENGINE='",
+                        eng.program,
+                        "'\n",
+                        "PROJECT='project.godot'\n",
+                        "OUT='export/index.html'\n",
+                        "ARTIFACT='export/index.html'\n",
+                        "if [ ! -f \"$PROJECT\" ]; then\n",
+                        "  echo \"[ci] missing $PROJECT in $(pwd)\" >&2\n",
+                        "  ls -la >&2 || true\n",
+                        "  exit 1\n",
+                        "fi\n",
+                        "mkdir -p export\n",
+                        "\"$ENGINE\" --path . --headless --export-release \"Web\" \"$OUT\"\n",
+                        "status=$?\n",
+                        "if [ -f \"$ARTIFACT\" ]; then\n",
+                        "  echo \"[ci] export artifact ok: $(pwd)/$ARTIFACT (engine exit=$status)\"\n",
+                        "  exit 0\n",
+                        "fi\n",
+                        "echo \"[ci] export failed: missing $(pwd)/$ARTIFACT (engine exit=$status)\" >&2\n",
+                        "ls -la export >&2 || true\n",
+                        "exit 1\n",
+                    ],
+                    "",
+                )
+            ex = Build.cmd({
+                id: $id,
+                depends_on: [web_id],
+                inputs: ["${proj}/project.godot"],
+                outputs: ["${proj}/export/index.html"],
+                program: "sh",
+                args: ["-c", export_script],
+                description: "Web export (${eng.slug})",
+                cwd: proj,
+                env: [],
+            })
+            $cmds = $cmds.append(ex)
+            $term = $term.append($id)
+            $id = $id + 1
+        } else if tests.smoke {
+            skip_script =
+                Str.join_with(
+                    [
+                        "echo \"[ci] skip Web export for ",
+                        eng.slug,
+                        " (no templates / export_web=false)\"\n",
+                    ],
+                    "",
+                )
+            sk = Build.cmd({
+                id: $id,
+                depends_on: [web_id],
+                inputs: [],
+                outputs: [],
+                program: "sh",
+                args: ["-c", skip_script],
+                description: "Skip Web export (${eng.slug})",
+                cwd: "",
+                env: [],
+            })
+            $cmds = $cmds.append(sk)
+            $term = $term.append($id)
+            $id = $id + 1
+        }
+    }
+
+    if $term.len() == 0 {
+        $term = ws_ids
+    }
+
+    { cmds: $cmds, terminal_ids: $term, next_id: $id }
+}
+
+## Publish only *.tar.zst files. Bash ${...} is built via sh_dollar_brace so Roc
+## never sees `${` inside a string literal.
+phase_publish : NodeId, List(NodeId), List(EngineSpec), PublishOpts -> PhaseResult
+phase_publish = |start_id, depends_on, build_engines, opts| {
+    if !opts.enabled {
+        return { cmds: [], terminal_ids: depends_on, next_id: start_id }
+    }
+
+    tag_line =
+        match opts.tag {
+            Tag(t) => Str.concat("TAG='", Str.concat(t, "'\n"))
+            AutoTag =>
+                # nightly-YYYY-MM-DD-<shortsha>  (bash expands date/git)
+                Str.join_with(
+                    [
+                        "SHORT=$(git rev-parse --short HEAD 2>/dev/null || echo nogit)\n",
+                        "TAG=\"nightly-$(date -u +%Y-%m-%d)-$SHORT\"\n",
+                    ],
+                    "",
+                )
+        }
+
+    # Collect asset paths without embedding bash arrays in Roc interpolations
+    var $asset_globs = ""
+
+    for e in build_engines {
+        $asset_globs = Str.concat(
+            $asset_globs,
+            Str.concat(engine_bundle_dir(e), " "),
+        )
+    }
+
+    script =
+        Str.join_with(
+            [
+                "set -eu\n",
+                "if [ -z \"",
+                sh_dollar_brace("GITHUB_TOKEN:-"),
+                "\" ]; then\n",
+                "  echo \"[publish] GITHUB_TOKEN or --github-token= required\" >&2\n",
+                "  exit 1\n",
+                "fi\n",
+                "if ! command -v gh >/dev/null 2>&1; then\n",
+                "  echo \"[publish] GitHub CLI (gh) not found\" >&2\n",
+                "  exit 1\n",
+                "fi\n",
+                tag_line,
+                "ASSETS=()\n",
+                "for d in ",
+                $asset_globs,
+                "; do\n",
+                "  [ -d \"$d\" ] || continue\n",
+                "  # shellcheck disable=SC2206\n",
+                "  files=(\"$d\"/*.tar.zst)\n",
+                "  if [ ! -e \"",
+                sh_dollar_brace("files[0]"),
+                "\" ]; then\n",
+                "    echo \"[publish] no .tar.zst under $d\" >&2\n",
+                "    continue\n",
+                "  fi\n",
+                "  for f in ",
+                sh_dollar_brace("files[@]"),
+                "; do\n",
+                "    ASSETS+=(\"$f\")\n",
+                "  done\n",
+                "done\n",
+                "if [ ",
+                sh_dollar_brace("#ASSETS[@]"),
+                " -eq 0 ]; then\n",
+                "  echo \"[publish] no assets to upload\" >&2\n",
+                "  exit 1\n",
+                "fi\n",
+                "echo \"[publish] release $TAG (\"",
+                sh_dollar_brace("#ASSETS[@]"),
+                "\" assets)\"\n",
+                "gh release create \"$TAG\" ",
+                sh_dollar_brace("ASSETS[@]"),
+                " --title \"godot-roc $TAG\" --notes \"Platform bundles for $TAG\"\n",
+            ],
+            "",
+        )
+
+    cmd = Build.cmd({
+        id: start_id,
+        depends_on,
+        inputs: [],
+        outputs: [],
+        program: "sh",
+        args: ["-c", script],
+        description: "GitHub release publish (*.tar.zst)",
+        cwd: "",
+        env: [],
+    })
+
+    {
+        cmds: [cmd],
+        terminal_ids: [start_id],
+        next_id: start_id + 1,
+    }
+}
+
+# =============================================================================
+# main!
+# =============================================================================
+
+main! : List(Str) => Try({}, [Exit(I32)])
+main! = |args| {
+    cfg = parse_config(args)
+
+    Log.info!("CI — engine × host matrix")
+    Log.info!("optimize=${optimize_str(cfg.optimize)}")
+    Log.info!("publish=${if cfg.publish.enabled { "yes" } else { "no" }}")
+    Log.info!("engines:")
+    for e in cfg.engines {
+        pipe =
+            match e.pipeline {
+                FullBuild => "full-build"
+                DumpOnly => "dump-only"
+            }
+        Log.info!("  - ${e.slug} [${pipe}] (cli=${e.cli_id})")
+    }
+    Log.info!("hosts:")
+    for h in cfg.hosts {
+        Log.info!("  - ${h.name_str}")
+    }
+
+    var $build_engines = []
+    for e in cfg.engines {
+        match e.pipeline {
             FullBuild => {
-                for t in hosts {
-                    $dirs = List.append($dirs, engine_host_out_dir(eng, t))
-                }
+                $build_engines = $build_engines.append(e)
             }
             DumpOnly => {}
         }
     }
 
-    var $uniq = []
-    for d in $dirs {
-        if List.contains($uniq, d) {
-            {}
-        } else {
-            $uniq = List.append($uniq, d)
-        }
-    }
+    prep = phase_prepare(1, cfg.engines)
+    Log.info!("prep cmds=${prep.cmds.len().to_str()} next_id=${prep.next_id.to_str()}")
 
-    for dir in $uniq {
-        (mid, n) = take_id($id)
-        $id = n
-        c = mk_cmd(mid, $clean_ids, "mkdir", ["-p", dir], "mkdir -p ${dir}", "")
-        $cmds = List.append($cmds, c)
-        $terminal = List.append($terminal, mid)
-    }
+    var $id = prep.next_id
+    var $cmds = prep.cmds
+    var $game_terms = []
 
-    {
-        cmds: $cmds,
-        terminal_ids: $terminal,
-        next_id: $id,
-    }
-}
+    for e in cfg.engines {
+        Log.info!("engine=${e.slug} id=${$id.to_str()} cmds=${$cmds.len().to_str()}")
 
-phase_dump : NodeId, List(NodeId), List(EngineSpec) -> _
-phase_dump = |start_id, prepare_ids, engines| {
-    var $cmds = []
-    var $ids = []
-    var $id = start_id
+        d = phase_dump($id, prep.terminal_ids, e)
+        $cmds = List.concat($cmds, d.cmds)
+        $id = d.next_id
+        Log.info!("  after dump cmds=${$cmds.len().to_str()}")
 
-    for eng in engines {
-        vendor = engine_vendor_dir(eng)
-        for d in eng.dumps {
-            (this_id, next) = take_id($id)
-            $id = next
-            c = mk_cmd(
-                this_id,
-                prepare_ids,
-                d.program,
-                d.args,
-                d.description,
-                vendor,
-            )
-            $cmds = List.append($cmds, c)
-            $ids = List.append($ids, this_id)
-        }
-    }
-
-    {
-        cmds: $cmds,
-        terminal_ids: $ids,
-        next_id: $id,
-    }
-}
-
-phase_glue_engine : NodeId, List(NodeId), List(NodeId), EngineSpec, CiRoots -> _
-phase_glue_engine = |start_id, prepare_ids, dump_ids, engine, roots| {
-    (cp_gde_id, n1) = take_id(start_id)
-    (gen_gdext_id, n2) = take_id(n1)
-    (test_gdext_id, n3) = take_id(n2)
-    (gen_api_id, n4) = take_id(n3)
-    (check_plat_id, n5) = take_id(n4)
-    (roc_glue_id, n6) = take_id(n5)
-    (patch_glue_id, n7) = take_id(n6)
-    (test_abi_id, n8) = take_id(n7)
-    (test_abi_impl_id, n9) = take_id(n8)
-
-    glue_dir = engine_glue_dir(engine)
-    platform_main = engine_platform_main(engine)
-    abi_file = engine_abi_file(engine)
-    gdext_file = engine_gdext_file(engine)
-    gde_call_file = engine_gde_call_file(engine)
-    abi_impl_file = engine_abi_impl_file(engine)
-    slug = engine.slug
-    gate = List.concat(prepare_ids, dump_ids)
-
-    cp_gde_call = mk_cmd(
-        cp_gde_id,
-        prepare_ids,
-        "cp",
-        ["host/gde_call.template.zig", gde_call_file],
-        "Copy gde_call.zig → ${slug}",
-        "",
-    )
-
-    gen_gdext = mk_cmd(
-        gen_gdext_id,
-        gate,
-        "roc",
-        ["run", "scripts/gdextension_interface.generate.roc", "--", "--engine=${slug}"],
-        "Generate gdextension_interface (${slug})",
-        "",
-    )
-
-    test_gdext = mk_cmd(
-        test_gdext_id,
-        [gen_gdext_id],
-        "zig",
-        ["test", gdext_file],
-        "zig test gdextension_interface (${slug})",
-        "",
-    )
-
-    gen_api = mk_cmd(
-        gen_api_id,
-        gate,
-        "roc",
-        ["run", "scripts/extension_api.generate.roc", "--", "--engine=${slug}"],
-        "Generate extension_api (${slug})",
-        "",
-    )
-
-    check_plat = mk_cmd(
-        check_plat_id,
-        [gen_gdext_id, gen_api_id],
-        "roc",
-        ["check", platform_main],
-        "roc check ${platform_main}",
-        "",
-    )
-
-    roc_glue = mk_cmd(
-        roc_glue_id,
-        [check_plat_id],
-        "roc",
-        [
-            "glue",
-            roots.zig_glue_roc,
-            "${glue_dir}/",
-            platform_main,
-        ],
-        "roc glue → ${slug}/roc_platform_abi.zig",
-        "",
-    )
-
-    patch_glue = find_replace_cmd({
-        id: patch_glue_id,
-        depends_on: [roc_glue_id],
-        file: abi_file,
-        pairs: glue_replace_pairs,
-        description: "find/replace patch roc_platform_abi.zig (${slug})",
-    })
-
-    test_abi = mk_cmd(
-        test_abi_id,
-        [patch_glue_id],
-        "zig",
-        ["test", abi_file],
-        "zig test roc_platform_abi (${slug})",
-        "",
-    )
-
-    test_abi_impl = mk_cmd(
-        test_abi_impl_id,
-        [patch_glue_id, cp_gde_id],
-        "zig",
-        ["test", abi_impl_file],
-        "zig test zig_platform_abi_impl (${slug})",
-        "",
-    )
-
-    {
-        cmds: [
-            cp_gde_call,
-            gen_gdext,
-            test_gdext,
-            gen_api,
-            check_plat,
-            roc_glue,
-            patch_glue,
-            test_abi,
-            test_abi_impl,
-        ],
-        terminal_ids: [test_gdext_id, test_abi_id, test_abi_impl_id, check_plat_id],
-        next_id: n9,
-    }
-}
-
-phase_hosts_engine : NodeId, List(NodeId), EngineSpec, List(HostTarget), Optimize, CiRoots -> _
-phase_hosts_engine = |start_id, glue_ids, engine, selected, optimize, roots| {
-    var $cmds = []
-    var $build_ids = []
-    var $id = start_id
-    slug = engine.slug
-
-    for t in selected {
-        (this_id, next) = take_id($id)
-        $id = next
-        argv = zig_argv(engine, t, optimize, roots.host_entry)
-        emit = engine_host_out_path(engine, t)
-        c = mk_cmd(
-            this_id,
-            glue_ids,
-            "zig",
-            argv,
-            "compile host ${slug}/${t.name_str} → ${emit}",
-            "",
-        )
-        $cmds = List.append($cmds, c)
-        $build_ids = List.append($build_ids, this_id)
-    }
-
-    {
-        cmds: $cmds,
-        terminal_ids: $build_ids,
-        next_id: $id,
-    }
-}
-
-phase_bundle_engine : NodeId, List(NodeId), EngineSpec -> _
-phase_bundle_engine = |start_id, host_ids, engine| {
-    (copy_plat_id, n1) = take_id(start_id)
-    (roc_bundle_id, n2) = take_id(n1)
-    (zip_id, n3) = take_id(n2)
-
-    slug = engine.slug
-    platform_src = engine_platform_dir(engine)
-    platform_dest = engine_bundle_platform_dest(engine)
-    bundle_ws = engine_bundle_workspace(engine)
-    plat_name = engine_bundle_platform_name(engine)
-
-    rel_main = "${plat_name}/main.roc"
-    rel_wasm = "${plat_name}/targets/wasm32/libhost.o.wasm"
-    rel_musl = "${plat_name}/targets/x64musl/libhost.a"
-
-    copy_platform = mk_cmd(
-        copy_plat_id,
-        host_ids,
-        "cp",
-        ["-a", platform_src, platform_dest],
-        "Copy ${platform_src} → ${platform_dest}",
-        "",
-    )
-
-    roc_bundle = mk_cmd(
-        roc_bundle_id,
-        [copy_plat_id],
-        "roc",
-        [
-            "bundle",
-            rel_main,
-            rel_wasm,
-            rel_musl,
-        ],
-        "roc bundle platform (${slug})",
-        bundle_ws,
-    )
-
-    # Skip empty zip when templates/ is absent under the bundle workspace.
-    zip_script =
-        \\set -eu
-        \\if [ -d templates ]; then
-        \\    zip -r templates.zip . -i templates/
-        \\else
-        \\    echo "[bundle] no templates/ under $(pwd); skipping templates.zip"
-        \\fi
-        \\
-
-    zip_templates = mk_cmd(
-        zip_id,
-        [roc_bundle_id],
-        "sh",
-        ["-c", zip_script],
-        "zip templates [${slug}] (optional)",
-        bundle_ws,
-    )
-
-    {
-        cmds: [copy_platform, roc_bundle, zip_templates],
-        terminal_ids: [roc_bundle_id, zip_id],
-        next_id: n3,
-    }
-}
-
-phase_workspace_engine : NodeId, List(NodeId), List(NodeId), EngineSpec, CiRoots -> _
-phase_workspace_engine = |start_id, prepare_ids, bundle_ids, engine, roots| {
-    (copy_id, n1) = take_id(start_id)
-    (copy_plat_id, n2) = take_id(n1)
-    (patch_id, n3) = take_id(n2)
-
-    project_dir = engine_project_dir(engine)
-    project_main = engine_project_main(engine)
-    local_plat = engine_project_platform_dir(engine)
-    local_plat_main = engine_project_platform_main(engine)
-    platform_src = engine_platform_dir(engine)
-    slug = engine.slug
-
-    copy_template = mk_cmd(
-        copy_id,
-        prepare_ids,
-        "cp",
-        ["-a", "templates/${roots.project_template}", project_dir],
-        "Create app \"${roots.project_name}\" → ${project_dir}",
-        "",
-    )
-
-    copy_script =
-        \\set -eu
-        \\SRC='${platform_src}'
-        \\DST='${local_plat}'
-        \\MAIN='${local_plat_main}'
-        \\if [ ! -d "$SRC" ]; then
-        \\    echo "[workspace] missing platform source: $SRC" >&2
-        \\    exit 1
-        \\fi
-        \\if [ ! -f "$SRC/main.roc" ]; then
-        \\    echo "[workspace] missing $SRC/main.roc" >&2
-        \\    ls -la "$SRC" >&2 || true
-        \\    exit 1
-        \\fi
-        \\rm -rf "$DST"
-        \\cp -a "$SRC" "$DST"
-        \\if [ ! -f "$MAIN" ]; then
-        \\    echo "[workspace] copy failed; missing $MAIN" >&2
-        \\    ls -la "$DST" >&2 || true
-        \\    exit 1
-        \\fi
-        \\echo "[workspace] local platform ready: $MAIN"
-        \\
-
-    copy_local_platform = mk_cmd(
-        copy_plat_id,
-        List.concat(bundle_ids, [copy_id]),
-        "sh",
-        ["-c", copy_script],
-        "Install local platform → ${local_plat} (${slug})",
-        "",
-    )
-
-    patch_platform = find_replace_cmd({
-        id: patch_id,
-        depends_on: [copy_plat_id],
-        file: project_main,
-        pairs: [
-            {
-                find: "pf: platform \"[PLATFORM_GOES_HERE]\",",
-                replace: "pf: platform \"${engine_local_platform_pkg}\",",
-            },
-        ],
-        description: "Patch platform → ${engine_local_platform_pkg} (${slug})",
-    })
-
-    {
-        cmds: [copy_template, copy_local_platform, patch_platform],
-        terminal_ids: [patch_id],
-        next_id: n3,
-    }
-}
-
-phase_game_engine : {
-    start_id : NodeId,
-    host_ids : List(NodeId),
-    template_ids : List(NodeId),
-    engine : EngineSpec,
-    deep_wasm : Bool,
-} -> _
-phase_game_engine = |p| {
-    eng = p.engine
-    slug = eng.slug
-    project_dir = engine_project_dir(eng)
-    project_main = engine_project_main(eng)
-    linux_out = engine_project_linux_out(eng)
-    temp_a = engine_project_temp_a(eng)
-    wasm_out = engine_project_wasm(eng)
-
-    (linux_id, n1) = take_id(p.start_id)
-    (web_id, n2) = take_id(n1)
-    (ar_id, n3) = take_id(n2)
-    (val_host_id, n4) = take_id(n3)
-    (val_app_obj_id, n5) = take_id(n4)
-    (wasm_ld_id, n6) = take_id(n5)
-    (emcc_id, n7) = take_id(n6)
-    (val_final_id, n8) = take_id(n7)
-    (export_id, n9) = take_id(n8)
-
-    game_deps = List.concat(p.host_ids, p.template_ids)
-
-    roc_linux = mk_cmd(
-        linux_id,
-        game_deps,
-        "roc",
-        [
-            "build",
-            project_main,
-            "--target=x64musl",
-            "--no-cache",
-            "--output=${linux_out}",
-        ],
-        "Compiling desktop roc game (x64musl, ${slug})",
-        "",
-    )
-
-    roc_web = mk_cmd(
-        web_id,
-        game_deps,
-        "roc",
-        [
-            "build",
-            project_main,
-            "--target=wasm32",
-            "--output=${temp_a}",
-        ],
-        "Compiling web roc game (wasm32, ${slug})",
-        "",
-    )
-
-    ar_x = mk_cmd(
-        ar_id,
-        [web_id],
-        "ar",
-        ["x", temp_a, "--output", project_dir],
-        "Extracting for validation (ar x) [${slug}]",
-        "",
-    )
-
-    validate_host = mk_cmd(
-        val_host_id,
-        [ar_id],
-        "wasm-validate",
-        ["${project_dir}/libhost.o.wasm"],
-        "wasm-validate libhost.o.wasm [${slug}]",
-        "",
-    )
-
-    validate_app_obj = mk_cmd(
-        val_app_obj_id,
-        [ar_id],
-        "wasm-validate",
-        ["${project_dir}/roc_app_llvm_wasm32_speed.o"],
-        "wasm-validate roc_app_llvm_wasm32_speed.o [${slug}]",
-        "",
-    )
-
-    wasm_ld = mk_cmd(
-        wasm_ld_id,
-        [val_host_id, val_app_obj_id],
-        "zig",
-        [
-            "wasm-ld",
-            "--fatal-warnings",
-            "--experimental-pic",
-            "--no-entry",
-            "--export-dynamic",
-            "--import-memory",
-            "--import-table",
-            "-shared",
-            "-o",
-            "${project_dir}/test.wasm",
-            "${project_dir}/libhost.o.wasm",
-            "${project_dir}/roc_app_llvm_wasm32_speed.o",
-        ],
-        "Linking with wasm-ld (diagnostic) [${slug}]",
-        "",
-    )
-
-    emcc = mk_cmd(
-        emcc_id,
-        [web_id],
-        "emcc",
-        [
-            temp_a,
-            "-o",
-            wasm_out,
-            "-sERROR_ON_UNDEFINED_SYMBOLS=1",
-            "-sSIDE_MODULE=2",
-            "-sEXPORTED_FUNCTIONS=_godot_roc_init",
-            "-O0",
-            "-msimd128",
-        ],
-        "Final Web GDExtension (emcc SIDE_MODULE=2) [${slug}]",
-        "",
-    )
-
-    validate_final = mk_cmd(
-        val_final_id,
-        [emcc_id],
-        "wasm-validate",
-        ["--enable-extended-const", wasm_out],
-        "wasm-validate final game wasm [${slug}]",
-        "",
-    )
-
-    # Primary only: needs matching export templates (4.7.2 in current nix env).
-    # Artifact-gated: success if export/index.html exists even when engine crashes after pack.
-    export_script =
-        \\set +e
-        \\ENGINE='${eng.program}'
-        \\PROJECT='project.godot'
-        \\OUT='export/index.html'
-        \\ARTIFACT='export/index.html'
-        \\if [ ! -f "$PROJECT" ]; then
-        \\    echo "[ci] missing $PROJECT in $(pwd)" >&2
-        \\    ls -la >&2 || true
-        \\    exit 1
-        \\fi
-        \\if [ ! -f export_presets.cfg ]; then
-        \\    echo "[ci] missing export_presets.cfg (need a preset named Web)" >&2
-        \\    exit 1
-        \\fi
-        \\mkdir -p export
-        \\"$ENGINE" --path . --headless --export-release "Web" "$OUT"
-        \\status=$?
-        \\if [ -f "$ARTIFACT" ]; then
-        \\    echo "[ci] export artifact ok: $(pwd)/$ARTIFACT (engine exit=$status)"
-        \\    exit 0
-        \\fi
-        \\echo "[ci] export failed: missing $(pwd)/$ARTIFACT (engine exit=$status)" >&2
-        \\ls -la export >&2 || true
-        \\exit 1
-        \\
-
-    skip_export_script =
-        \\echo "[ci] skip Web export for ${slug} (no matching export templates in this environment)"
-        \\exit 0
-        \\
-
-    godot_export =
-        if eng.export_web {
-            mk_cmd(
-                export_id,
-                [val_final_id, linux_id],
-                "sh",
-                ["-c", export_script],
-                "Web export (${slug}) — artifact-gated",
-                project_dir,
-            )
-        } else {
-            mk_cmd(
-                export_id,
-                [val_final_id, linux_id],
-                "sh",
-                ["-c", skip_export_script],
-                "Skip Web export (${slug})",
-                project_dir,
-            )
-        }
-
-    base_cmds = [
-        roc_linux,
-        roc_web,
-        ar_x,
-        validate_host,
-        validate_app_obj,
-        emcc,
-        validate_final,
-        godot_export,
-    ]
-
-    cmds =
-        if p.deep_wasm {
-            List.concat(base_cmds, [wasm_ld])
-        } else {
-            base_cmds
-        }
-
-    {
-        cmds: cmds,
-        terminal_ids: [export_id, linux_id],
-        next_id: n9,
-    }
-}
-
-phase_publish : NodeId, List(NodeId), List(EngineSpec), PublishOpts -> _
-phase_publish = |start_id, depends_on, build_engines, opts| {
-    if !opts.enabled {
-        {
-            cmds: [],
-            terminal_ids: [],
-            next_id: start_id,
-        }
-    } else {
-        (pub_id, n1) = take_id(start_id)
-
-        var $asset_args = ""
-        for eng in build_engines {
-            $asset_args = Str.concat($asset_args, " bundle-out/${eng.slug}")
-        }
-
-        tag_line =
-            if opts.tag == "" {
-                "TAG=\"ci-$(date -u +%Y%m%d-%H%M%S)\"\n"
-            } else {
-                "TAG=\"${opts.tag}\"\n"
+        match e.pipeline {
+            DumpOnly => {
+                Log.info!("  dump-only skip")
             }
-
-        token_line =
-            if opts.token == "" {
-                ""
-            } else {
-                "export GITHUB_TOKEN=\"${opts.token}\"\n"
-            }
-
-        script =
-            Str.concat(
-                "set -eu\n",
-                Str.concat(
-                    token_line,
-                    Str.concat(
-                        "if [ -z \"$GITHUB_TOKEN\" ]; then\n",
-                        Str.concat(
-                            "  echo \"[publish] GITHUB_TOKEN or --github-token= required\" >&2\n",
-                            Str.concat(
-                                "  exit 1\n",
-                                Str.concat(
-                                    "fi\n",
-                                    Str.concat(
-                                        "if ! command -v gh >/dev/null 2>&1; then\n",
-                                        Str.concat(
-                                            "  echo \"[publish] GitHub CLI (gh) not found\" >&2\n",
-                                            Str.concat(
-                                                "  exit 1\n",
-                                                Str.concat(
-                                                    "fi\n",
-                                                    Str.concat(
-                                                        tag_line,
-                                                        Str.concat(
-                                                            "echo \"[publish] creating release $TAG\"\n",
-                                                            Str.concat(
-                                                                "gh release create \"$TAG\"",
-                                                                Str.concat(
-                                                                    $asset_args,
-                                                                    " --title \"godot-roc $TAG\" --notes \"Automated CI artefacts (platform bundles per engine).\"\n",
-                                                                ),
-                                                            ),
-                                                        ),
-                                                    ),
-                                                ),
-                                            ),
-                                        ),
-                                    ),
-                                ),
-                            ),
-                        ),
-                    ),
-                ),
-            )
-
-        pub = mk_cmd(
-            pub_id,
-            depends_on,
-            "sh",
-            ["-c", script],
-            "GitHub release publish (bundle-out/*)",
-            "",
-        )
-
-        {
-            cmds: [pub],
-            terminal_ids: [pub_id],
-            next_id: n1,
-        }
-    }
-}
-
-# =============================================================================
-# Entry
-# =============================================================================
-
-main! : List(Str) => Try({}, [Exit(I32)])
-main! = |args| {
-    user_args =
-        if List.is_empty(args) {
-            []
-        } else {
-            List.drop_first(args, 1)
-        }
-
-    optimize = parse_optimize(user_args)
-    mode = parse_mode(user_args)
-    deep_wasm = List.contains(user_args, "deep-wasm") or mode == Full
-    publish_opts = parse_publish(user_args)
-
-    Log.info!("CI — engine × host matrix")
-    Log.info!("mode=${mode_label(mode)}  host_optimize=${optimize_label(optimize)}  deep_wasm=${if deep_wasm "yes" else "no"}")
-    Log.info!("publish=${if publish_opts.enabled "yes" else "no"}")
-
-    roots = default_roots
-    engines = select_engines(mode)
-    build_engines = engines_full_build(engines)
-    selected_hosts = with_baselines(select_hosts(mode))
-
-    Log.info!("engines (${List.len(engines).to_str()}):")
-    for e in engines {
-        web =
-            if e.export_web {
-                "web-export"
-            } else {
-                "no-web-export"
-            }
-        Log.info!("  - ${e.slug} [${pipeline_label(e.pipeline)}, ${web}]")
-    }
-    Log.info!("host targets (${List.len(selected_hosts).to_str()}):")
-    for t in selected_hosts {
-        Log.info!("  - ${t.name_str}")
-    }
-
-    match primary_engine(build_engines) {
-        Err(NoPrimaryEngine) => {
-            Log.error!("No FullBuild primary engine selected")
-            Err(Exit(1))
-        }
-        Ok(_primary) => {
-            prep = phase_prepare(0, engines, selected_hosts, roots)
-            dump = phase_dump(prep.next_id, prep.terminal_ids, engines)
-
-            var $cmds = List.concat(prep.cmds, dump.cmds)
-            var $id = dump.next_id
-            var $all_terminals = []
-
-            for eng in build_engines {
-                g = phase_glue_engine($id, prep.terminal_ids, dump.terminal_ids, eng, roots)
+            FullBuild => {
+                Log.info!("  full-build glue…")
+                g = phase_glue_engine($id, prep.terminal_ids, d.terminal_ids, e, cfg.tests)
                 $cmds = List.concat($cmds, g.cmds)
                 $id = g.next_id
+                Log.info!("  after glue cmds=${$cmds.len().to_str()}")
 
-                h = phase_hosts_engine($id, g.terminal_ids, eng, selected_hosts, optimize, roots)
+                h = phase_hosts_engine($id, g.terminal_ids, e, cfg.hosts, cfg.optimize)
                 $cmds = List.concat($cmds, h.cmds)
                 $id = h.next_id
+                Log.info!("  after hosts cmds=${$cmds.len().to_str()}")
 
-                b = phase_bundle_engine($id, h.terminal_ids, eng)
+                b = phase_bundle_engine($id, h.terminal_ids, e, cfg.hosts)
                 $cmds = List.concat($cmds, b.cmds)
                 $id = b.next_id
 
-                ws = phase_workspace_engine($id, prep.terminal_ids, b.terminal_ids, eng, roots)
-                $cmds = List.concat($cmds, ws.cmds)
-                $id = ws.next_id
+                w = phase_workspace_engine($id, b.terminal_ids, e)
+                $cmds = List.concat($cmds, w.cmds)
+                $id = w.next_id
 
-                game = phase_game_engine({
-                    start_id: $id,
-                    host_ids: h.terminal_ids,
-                    template_ids: ws.terminal_ids,
-                    engine: eng,
-                    deep_wasm: deep_wasm,
-                })
+                game = phase_game_engine($id, w.terminal_ids, e, cfg.hosts, cfg.optimize, cfg.tests)
                 $cmds = List.concat($cmds, game.cmds)
                 $id = game.next_id
-                $all_terminals = List.concat($all_terminals, game.terminal_ids)
+                $game_terms = List.concat($game_terms, game.terminal_ids)
+                Log.info!("  after game cmds=${$cmds.len().to_str()}")
             }
+        }
+    }
 
-            pub = phase_publish($id, $all_terminals, build_engines, publish_opts)
-            $cmds = List.concat($cmds, pub.cmds)
+    pub = phase_publish($id, $game_terms, $build_engines, cfg.publish)
+    $cmds = List.concat($cmds, pub.cmds)
 
-            graph = Build.graph($cmds)
+    Log.info!("total cmds=${$cmds.len().to_str()}")
+    Log.info!("next_id=${$id.to_str()}")
+    Log.info!("Final Graph=${Str.inspect($cmds)}")
 
-            match Build.run!(graph) {
-                Ok({}) => {
-                    Log.info!("all tasks finished")
-                    for eng in build_engines {
-                        Log.info!("engine ${eng.slug}:")
-                        Log.info!("  CI app:  ${engine_project_dir(eng)}")
-                        Log.info!("  local platform: ${engine_project_platform_main(eng)}")
-                        Log.info!("  Bundle:  ${engine_bundle_workspace(eng)}")
-                        if eng.export_web {
-                            Log.info!("  Export:  ${engine_export_index(eng)}")
-                        } else {
-                            Log.info!("  Export:  (skipped — no templates for this engine)")
-                        }
-                    }
-                    match primary_engine(build_engines) {
-                        Ok(p) => {
-                            Log.info!("Editor test (primary):")
-                            Log.info!("  ${p.program} ${engine_project_godot(p)}")
-                            Log.info!("Web:")
-                            Log.info!("  SERVE_PATH='${engine_project_dir(p)}/export' roc run scripts/serve.roc")
-                        }
-                        Err(_) => {}
-                    }
-                    Ok({})
-                }
-                Err(BuildFailed(msg)) => {
-                    Log.error!(msg)
-                    Err(Exit(1))
-                }
+    graph = Build.graph($cmds)
+
+    match Build.run!(graph) {
+        Ok({}) => {
+            Log.info!("all tasks finished")
+            for eng in $build_engines {
+                Log.info!("engine ${eng.slug}:")
+                Log.info!("  CI app:  ${engine_project_dir(eng)}")
+                Log.info!("  Bundle:  ${engine_bundle_workspace(eng)}")
             }
+            Ok({})
+        }
+        Err(BuildFailed(msg)) => {
+            Log.error!(msg)
+            Err(Exit(1))
         }
     }
 }

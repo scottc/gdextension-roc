@@ -1,8 +1,19 @@
 #!/usr/bin/env roc
 
 ## Generate Roc + Zig bindings from Godot's extension_api.json
+##
+## Usage:
+##   roc run scripts/extension_api.generate.roc -- --engine=godot
+##   roc run scripts/extension_api.generate.roc -- --engine=godot4.5
+##   roc run scripts/extension_api.generate.roc -- --engine=godot_4_5_1
+##   roc run scripts/extension_api.generate.roc -- --engine=redot
+##   roc run scripts/extension_api.generate.roc -- --engine=rex
+##
+## Path slug (dump-out/ / platform-out/ / host/glue-out/):
+##   godot | godot_4_5_1 | redot | rex
+
 app [main!] {
-    pf: platform "https://github.com/roc-lang/basic-cli/releases/download/0.25.0/CZsY7tYZwR3rj9kYbpaCfxki2yVAaRL8bBwMLvB2xkbA.tar.zst"
+    pf: platform "https://github.com/roc-lang/basic-cli/releases/download/0.23.0/GNN5tt2gKdX4dhawg4915C4YB193woHFdcCkz31fhGxv.tar.zst"
 }
 
 import pf.Path
@@ -189,19 +200,123 @@ NativeStructure : {
     format : Str,
 }
 
+## Host rows we know how to emit in platform main.roc targets:
+HostRow : { name : Str, entry : Str }
+
+all_host_rows : List(HostRow)
+all_host_rows = [
+    {
+        name: "wasm32",
+        entry:
+            \\        wasm32: {
+            \\            inputs: [ "libhost.o.wasm", app ],
+            \\            output: Archive,
+            \\            exports: [ "godot_roc_init" ],
+            \\        },
+    },
+    {
+        name: "x64musl",
+        entry:
+            \\        x64musl: { inputs: [ "libhost.a", app ], output: Shared },
+    },
+    {
+        name: "x64v1musl",
+        entry:
+            \\        x64v1musl: { inputs: [ "libhost.a", app ], output: Shared },
+    },
+    {
+        name: "arm64musl",
+        entry:
+            \\        arm64musl: { inputs: [ "libhost.a", app ], output: Shared },
+    },
+    {
+        name: "arm64v1musl",
+        entry:
+            \\        arm64v1musl: { inputs: [ "libhost.a", app ], output: Shared },
+    },
+    {
+        name: "x64mac",
+        entry:
+            \\        x64mac: { inputs: [ "libhost.a", app ], output: Shared },
+    },
+    {
+        name: "arm64mac",
+        entry:
+            \\        arm64mac: { inputs: [ "libhost.a", app ], output: Shared },
+    },
+    {
+        name: "x64win",
+        entry:
+            \\        x64win: { inputs: ["host.lib", app], output: Shared },
+    },
+    {
+        name: "x64mingw",
+        entry:
+            \\        x64mingw: { inputs: ["host.lib", app], output: Shared },
+    },
+    {
+        name: "arm64win",
+        entry:
+            \\        arm64win: { inputs: ["host.lib", app], output: Shared },
+    },
+    {
+        name: "arm64mingw",
+        entry:
+            \\        arm64mingw: { inputs: ["host.lib", app], output: Shared },
+    },
+]
+
+## --targets=all | auto | x64musl | wasm32,x64musl | …
+## auto / default → primary only (wasm32 + x64musl)
+parse_targets : List(OsStr) -> List(Str)
+parse_targets = |args| {
+    for a in args {
+        str = a.display()
+        if str.starts_with("--targets=") {
+            id = str.replace_first("--targets=", "")
+            match id {
+                "all" => return all_host_rows.map(|r| r.name)
+                "auto" => return ["wasm32", "x64musl"]
+                name => return [name]
+            }
+        }
+    }
+    ["x64musl"]
+}
+
+render_targets_block : List(Str) -> Str
+render_targets_block = |wanted| {
+    var $lines = ["        inputs_dir: \"targets/\","]
+    for row in all_host_rows {
+        for w in wanted {
+            if w == row.name {
+                $lines = $lines.append(row.entry)
+            }
+        }
+    }
+    body = Str.join_with($lines, "\n")
+    \\    targets: {
+    \\${body}
+    \\    }
+}
+
 Engine : [Godot, Godot4_5_1, Redot, Rex]
 
+## Accept CI cli ids (godot4.5) and path slugs (godot_4_5_1).
 parse_engine : List(OsStr) -> Engine
 parse_engine = |args| {
     for a in args {
         str = a.display()
         if str.starts_with("--engine=") {
-            match str.replace_first("--engine=", "") {
+            id = str.replace_first("--engine=", "")
+            match id {
                 "godot" => return Godot
+                "godot4.5" => return Godot4_5_1
+                "godot4.5.1" => return Godot4_5_1
                 "godot_4_5_1" => return Godot4_5_1
                 "redot" => return Redot
                 "rex" => return Rex
-                _ => crash "invalid --engine= flag, must be: godot, godot_4_5_1, redot or rex."
+                _ => crash "invalid --engine= flag, must be: godot, godot4.5, godot_4_5_1, redot or rex."
             }
         }
     }
@@ -209,6 +324,7 @@ parse_engine = |args| {
     Godot
 }
 
+## Directory / path slug (not necessarily the CLI id).
 engine_str : Engine -> Str
 engine_str = |engine| {
     match engine {
@@ -255,8 +371,10 @@ main! = |args| {
     engine : Engine
     engine = parse_engine(user_args)
     eng = engine_str(engine)
-
     Stdout.line!("# Engine: ${eng}")?
+
+    target_names = parse_targets(user_args)
+    Stdout.line!("# Targets: ${Str.join_with(target_names, ",")}")?
 
     source : Path
     source = "dump-out/${eng}/extension_api.json"
@@ -369,7 +487,8 @@ main! = |args| {
             .write_utf8!(singleton_to_roc_source_str(decoded, s))?
     }
 
-    Path.join(roc_out_path, "main.roc").write_utf8!(gen_platform_main_roc(decoded))?
+    Path.join(roc_out_path, "main.roc")
+        .write_utf8!(gen_platform_main_roc(decoded, target_names))?
 
     # Per-engine glue out (was hardcoded host/glue-out/godot)
     Path.join(glue_out_dir, "zig_platform_abi_impl.zig")
@@ -1037,8 +1156,8 @@ all_host_symbols = |eapi| {
 # Platform root
 # =============================================================================
 
-gen_platform_main_roc : ExtensionApi -> Str
-gen_platform_main_roc = |eapi| {
+gen_platform_main_roc : ExtensionApi, List(Str) -> Str
+gen_platform_main_roc = |eapi, target_names| {
     builtin_names =
         eapi.builtin_classes.fold([], |acc, b| {
             if is_struct_builtin(b.name) {
@@ -1117,6 +1236,8 @@ gen_platform_main_roc = |eapi| {
     singleton_imports =
         Str.join_with(singleton_names.map(|n| "import engine/singletons/${n}"), "\n")
 
+    targets_block = render_targets_block(target_names)
+
     \\# AUTO-GENERATED Godot Roc platform
     \\platform "godot-roc"
     \\    requires {} {
@@ -1140,19 +1261,7 @@ gen_platform_main_roc = |eapi| {
     \\    hosted {
     \\${hosted_body}
     \\    }
-    \\    targets: {
-    \\        inputs_dir: "targets/",
-    \\        x64musl: { inputs: [ "libhost.a", app ], output: Shared },
-    \\        wasm32: {
-    \\            inputs: [ "libhost.o.wasm", app ],
-    \\            output: Archive,
-    \\            exports: [ "godot_roc_init" ],
-    \\        },
-    \\        x64win: { inputs: ["host.lib", app], output: Shared },
-    \\        arm64win: { inputs: ["host.lib", app], output: Shared },
-    \\        x64mingw: { inputs: ["host.lib", app], output: Shared },
-    \\        arm64mingw: { inputs: ["host.lib", app], output: Shared },
-    \\    }
+    \\${targets_block}
     \\${meta_imports}
     \\
     \\${math_imports}

@@ -15,7 +15,7 @@
     # this can be useful
     # if you want to explicitly stick to a version.
     # We use the short hash here, to be consistant with other useages.
-    # Searchable string: nightly-2026-10-09-258ab27
+    # Searchable string: nightly-2026-09-27-a3ce7f1
     # roc.url = "github:roc-lang/roc/a3ce7f1?dir=src";
     # #roc.url = "path:./flakes/roc-nix"; # TODO:
     # roc.inputs.nixpkgs.follows = "nixpkgs";
@@ -39,7 +39,7 @@
       let
         pkgs = import nixpkgs { inherit system; };
         # rocPkg = roc.packages.${system}.roc or null;
-        rocNightlyPkg = roc-nightly.packages.${system}.nightly-2026-10-09-258ab27;
+        rocNightlyPkg = roc-nightly.packages.${system}.nightly-2026-09-27-a3ce7f1;
         redotPkg = redot.packages.${system}.redot;
         rexPkg = rex.packages.${system}.rex;
 
