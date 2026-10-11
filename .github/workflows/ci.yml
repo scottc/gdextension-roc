@@ -7,13 +7,33 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
-      mode:
-        description: "CI mode (quick = primary hosts; full = full matrix)"
+      baseline-engine:
+        description: "Baseline Engine (Single choice)"
         type: choice
-        options: [quick, full]
-        default: full
+        options:
+          - godot
+          - godot4_5
+          - redot
+          - rex
+        default: godot
+      additional-engines:
+        description: "Additional Engines (Multiple choice)"
+        type: choice
+        options:
+          - none
+          - all
+          - godot
+          - godot4_5
+          - redot
+          - rex
+        default: none
+      cpuarchos:
+        description: "CpuArch-OS Targets (Multiple choice, default=auto detect local native os)"
+        type: choice
+        options: [auto, all, x64musl, wasm32]
+        default: auto
       optimize:
-        description: "Host/desktop optimize (-Doptimize=…)"
+        description: "Optimize (-Doptimize=…)"
         type: choice
         options:
           - Debug
@@ -21,24 +41,16 @@ on:
           - ReleaseSafe
           - ReleaseSmall
         default: Debug
-      deep_wasm:
-        description: "Run deep wasm-ld diagnostic link"
-        type: boolean
-        default: true
-      engine:
-        description: "Optional single engine (empty = all selected by mode)"
-        type: choice
+      tests:
+        description: "Static tests (wasm-ld, wasm-validate, roc check, zig test)"
         options:
-          - ""
-          - godot
-          - godot_4_5_1
-          - redot
-          - rex
-        default: ""
-      extra_args:
-        description: "Extra args appended to ci.roc (advanced)"
-        type: string
-        default: ""
+          - all
+          - none
+          - "roc check"
+          - "zig test"
+          - wasm-ld
+          - wasm-validate
+        default: all
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -62,42 +74,27 @@ jobs:
           set -eux
 
           # Defaults for push / pull_request
-          MODE="full"
+          BASELINE="godot"
+          ADDITIONAL=""
+          CPUARCHOS="auto"
           OPTIMIZE="Debug"
-          DEEP_WASM="1"
-          ENGINE=""
-          EXTRA=""
-
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            MODE="quick"
-          fi
+          TESTS="all"
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            MODE="${{ inputs.mode }}"
-            OPTIMIZE="${{ inputs.optimize }}"
-            if [ "${{ inputs.deep_wasm }}" = "true" ]; then
-              DEEP_WASM="1"
-            else
-              DEEP_WASM="0"
-            fi
-            ENGINE="${{ inputs.engine }}"
-            EXTRA="${{ inputs.extra_args }}"
+
+            # TODO: wire inputs into vars...
+            # SOMEVAR="${{ inputs.somevar }}"
+
+            BASELINE="godot"
+            ADDITIONAL=""
+            CPUARCHOS="auto"
+            OPTIMIZE="Debug"
+            TESTS="all"
+
           fi
 
+          # TODO: wire args...
           # Build argv for: roc run scripts/ci.roc -- <args...>
-          set -- "$MODE" "-Doptimize=${OPTIMIZE}"
-          if [ "$DEEP_WASM" = "1" ]; then
-            set -- "$@" "deep-wasm"
-          fi
-          if [ -n "$ENGINE" ]; then
-            set -- "$@" "--engine=${ENGINE}"
-          fi
-          # shell-split extra args carefully
-          if [ -n "$EXTRA" ]; then
-            # intentional: allow advanced flags without a second YAML surface
-            # shellcheck disable=SC2086
-            set -- "$@" $EXTRA
-          fi
 
           echo "argv=$*" >> "$GITHUB_OUTPUT"
           echo "Resolved: roc run scripts/ci.roc -- $*"
@@ -105,7 +102,7 @@ jobs:
       - name: CI inside flake
         run: |
           set -eux
-          # Prefer a lean shell if you define one; falls back to default.
+          # TODO: lean nix shell.
           if nix eval --raw .#devShells.x86_64-linux.ci >/dev/null 2>&1; then
             nix develop .#ci --command roc run scripts/ci.roc -- ${{ steps.args.outputs.argv }}
           else
