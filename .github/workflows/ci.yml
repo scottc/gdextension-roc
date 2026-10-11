@@ -8,30 +8,14 @@ on:
   workflow_dispatch:
     inputs:
       baseline-engine:
-        description: "Baseline Engine (Single choice)"
+        description: "Baseline Engine (--baseline=..)"
         type: choice
         options:
           - godot
-          - godot4_5
+          - godot4.5
           - redot
           - rex
         default: godot
-      additional-engines:
-        description: "Additional Engines (Multiple choice)"
-        type: choice
-        options:
-          - none
-          - all
-          - godot
-          - godot4_5
-          - redot
-          - rex
-        default: none
-      cpuarchos:
-        description: "CpuArch-OS Targets (Multiple choice, default=auto detect local native os)"
-        type: choice
-        options: [auto, all, x64musl, wasm32]
-        default: auto
       optimize:
         description: "Optimize (-Doptimize=…)"
         type: choice
@@ -41,15 +25,33 @@ on:
           - ReleaseSafe
           - ReleaseSmall
         default: Debug
+      additional-engines:
+        description: "Additional Engines (--engines=..)"
+        type: choice # TODO: multiple choice
+        options:
+          - none
+          - all
+          - godot
+          - godot4.5
+          - redot
+          - rex
+        default: none
+      cpuarchos:
+        description: "CpuArch-OS Targets (default=auto detect local native os, --targets=..)"
+        type: choice # TODO: multiple choice
+        options: [auto, all, x64musl, wasm32] # TODO: add all cpuarch-os targets...
+        default: auto
       tests:
-        description: "Static tests (wasm-ld, wasm-validate, roc check, zig test)"
+        description: "Static tests (--tests=..)"
+        type: choice # TODO: multiple choice
         options:
           - all
           - none
           - "roc check"
           - "zig test"
-          - wasm-ld
           - wasm-validate
+          - wasm-ld
+          - smoke
         default: all
 
 concurrency:
@@ -62,11 +64,9 @@ jobs:
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v6
-
       - uses: DeterminateSystems/nix-installer-action@main
-
-      # Free: uses GitHub Actions cache as a Nix substituter. No secrets, no paid Cachix.
       - uses: DeterminateSystems/magic-nix-cache-action@main
+      # TODO: can we get free $0, fast public flakehub binary cache?
 
       - name: Resolve CI args
         id: args
@@ -109,6 +109,7 @@ jobs:
             nix develop --command roc run scripts/ci.roc -- ${{ steps.args.outputs.argv }}
           fi
 
+      # TODO: maybe publish bundle-out, if there isn't any penalty, or storage resource limits or costs.
       # - name: Upload artefacts
       #   if: always()
       #   uses: actions/upload-artifact@v4
