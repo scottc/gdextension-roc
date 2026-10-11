@@ -118,7 +118,7 @@ jobs:
       #   with:
       #     name: ci-${{ github.run_id }}
       #     path: |
-      #       ci-out/
+      #       smoke-out/
       #       bundle-out/
       #       platform-out/
       #     if-no-files-found: ignore

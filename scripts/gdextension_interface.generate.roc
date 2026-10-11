@@ -85,7 +85,7 @@ main! = |args| {
     Stdout.line!("# Engine: ${eng}")?
 
     source : Path
-    source = "vendor-out/${eng}/gdextension_interface.h"
+    source = "dump-out/${eng}/gdextension_interface.h"
 
     glue_dir : Path
     glue_dir = "host/glue-out/${eng}"

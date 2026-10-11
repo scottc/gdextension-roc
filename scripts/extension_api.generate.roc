@@ -260,7 +260,7 @@ main! = |args| {
     Stdout.line!("# Engine: ${eng}")?
 
     source : Path
-    source = "vendor-out/${eng}/extension_api.json"
+    source = "dump-out/${eng}/extension_api.json"
 
     roc_out_path : Path
     roc_out_path = "platform-out/${eng}"
@@ -2232,7 +2232,7 @@ zig_platform_abi_impl_to_str = |eapi| {
             "\n",
         )
 
-    \\//! AUTO-GENERATED from vendor-out/godot/extension_api.json
+    \\//! AUTO-GENERATED from dump-out/godot/extension_api.json
     \\const std = @import("std");
     \\const gde_call = @import("gde_call.zig");
     \\const baseline_gde_if = @import("gdextension_interface.zig");

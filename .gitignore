@@ -1,11 +1,9 @@
-# Godot Roc
-
 # out dirs
-ci-out/
+dump-out/
 platform-out/
-vendor-out/
 host/glue-out/
 bundle-out/
+smoke-out/
 
 # zig
 .zig-cache/

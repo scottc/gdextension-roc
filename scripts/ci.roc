@@ -122,7 +122,7 @@ take_id = |next| (next, next + 1)
 # =============================================================================
 
 engine_vendor_dir : EngineSpec -> Str
-engine_vendor_dir = |e| "vendor-out/${e.slug}"
+engine_vendor_dir = |e| "dump-out/${e.slug}"
 
 engine_platform_dir : EngineSpec -> Str
 engine_platform_dir = |e| "platform-out/${e.slug}"
@@ -154,13 +154,13 @@ engine_abi_impl_file : EngineSpec -> Str
 engine_abi_impl_file = |e| "${engine_glue_dir(e)}/zig_platform_abi_impl.zig"
 
 engine_ci_out : EngineSpec -> Str
-engine_ci_out = |e| "ci-out/${e.slug}"
+engine_ci_out = |e| "smoke-out/${e.slug}"
 
 engine_ci_workspace : EngineSpec -> Str
-engine_ci_workspace = |e| "ci-out/${e.slug}/workspace"
+engine_ci_workspace = |e| "smoke-out/${e.slug}/workspace"
 
 engine_project_dir : EngineSpec -> Str
-engine_project_dir = |e| "ci-out/${e.slug}/workspace/my_game"
+engine_project_dir = |e| "smoke-out/${e.slug}/workspace/my_game"
 
 engine_project_main : EngineSpec -> Str
 engine_project_main = |e| "${engine_project_dir(e)}/main.roc"
@@ -549,11 +549,11 @@ pipeline_label = |p| {
 
 default_roots : CiRoots
 default_roots = {
-    ci_out_root: "ci-out",
+    smoke_out_root: "smoke-out",
     bundle_out_root: "bundle-out",
     platform_out_root: "platform-out",
     glue_out_root: "host/glue-out",
-    vendor_out_root: "vendor-out",
+    vendor_out_root: "dump-out",
     project_template: "ci",
     project_name: "My Game",
     host_entry: "host/host.zig",
