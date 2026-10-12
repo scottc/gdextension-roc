@@ -43,10 +43,16 @@
 						(value (Bool true))))))))))) (
 				(name "overlays")
 				(value (Attrs ((
+					(name "dev")
+					(value (List ()))) (
 					(name "dump-bindings")
 					(value (List ((Str "redot") (Str "rex"))))) (
-					(name "dev")
+					(name "ci")
 					(value (List ((Str "roc"))))) (
+					(name "nightly-release")
+					(value (List ()))) (
+					(name "stable-release")
+					(value (List ()))) (
 					(name "web-export")
 					(value (List ((Str "roc"))))))))))))) (
 			(name "graph")
@@ -396,7 +402,7 @@
 			(name "roc")
 			(url "github:roc-lang/roc-overlay"))))
 		(overlays ((
-			(environment "dev")
+			(environment "ci")
 			(overlays ("roc"))) (
 			(environment "dump-bindings")
 			(overlays ("redot" "rex"))) (

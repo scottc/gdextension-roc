@@ -5,6 +5,7 @@ config = [
 	Overlay("roc", "github:roc-lang/roc-overlay"),
 	Overlay("redot", "path:./flakes/redot-nix"),
 	Overlay("rex", "path:./flakes/rex-nix"),
+	Environment("dev", []), # ... todo
 	Environment(
 	    "dump-bindings",
 		[
@@ -20,18 +21,20 @@ config = [
 		]
 	),
 	Environment(
-		"dev",
+		"ci",
 		[
 			Overlays(["roc"]),
 			Command("roc", "rocpkgs.nightly-2026-09-27-a3ce7f1"),
-			Command("roc-stable", "rocpkgs.nightly-2026-09-27-a3ce7f1"),
 			Tools([
 				# compilers
 				# roc, via overlay...
 				"zig",
+				"godot",
 			]),
 		],
 	),
+	Environment("nightly-release", []),
+	Environment("stable-release", []),
 	Environment(
 		"web-export",
 		[
@@ -49,7 +52,7 @@ config = [
 	),
 	Shell("default", [Use("dev")]),
 	# depends on dump bindings, dev & web export...
-	Task("ci", [Use("dev"), Run(["scripts/ci.roc", "--", "--baseline=godot4", "--engines=none", "--targets=auto", "--tests=all", "-Doptimize=Debug"])]),
+	Task("ci", [Use("ci"), Run(["scripts/ci.roc", "--", "--baseline=godot", "--engines=none", "--targets=muslx64", "--tests=all", "-Doptimize=Debug"])]),
 
 	#Task("check", [Use("dev"), Run(["scripts/check_all.roc"])]),
 	#Task("bundle", [Use("dev"), Run(["scripts/build_bundle.roc"])]),
