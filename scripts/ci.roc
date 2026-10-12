@@ -803,7 +803,7 @@ phase_dump = |start_id, prepare_ids, eng| {
         inputs: [],
         outputs: ["${dump_dir}/gdextension_interface.h"],
         program: eng.program,
-        args: ["--headless", "--dump-gdextension-interface"],
+        args: ["--headless", "--dump-gdextension-interface", "--dump-extension-api"],
         description: "dump gdextension_interface (${eng.slug})",
         cwd: dump_dir,
         env: [],
@@ -812,22 +812,7 @@ phase_dump = |start_id, prepare_ids, eng| {
     iface_id = $id
     $id = $id + 1
 
-    dump_api = Build.cmd({
-        id: $id,
-        depends_on: prepare_ids,
-        inputs: [],
-        outputs: ["${dump_dir}/extension_api.json"],
-        program: eng.program,
-        args: ["--headless", "--dump-extension-api"],
-        description: "dump extension_api (${eng.slug})",
-        cwd: dump_dir,
-        env: [],
-    })
-    $cmds = $cmds.append(dump_api)
-    api_id = $id
-    $id = $id + 1
-
-    { cmds: $cmds, terminal_ids: [iface_id, api_id], next_id: $id }
+    { cmds: $cmds, terminal_ids: [iface_id], next_id: $id }
 }
 
 phase_glue_engine : NodeId, List(NodeId), List(NodeId), EngineSpec, List(HostTarget), TestOpts -> PhaseResult

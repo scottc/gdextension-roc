@@ -48,7 +48,7 @@
 					(name "dump-bindings")
 					(value (List ((Str "redot") (Str "rex"))))) (
 					(name "ci")
-					(value (List ((Str "roc"))))) (
+					(value (List ((Str "roc") (Str "redot"))))) (
 					(name "nightly-release")
 					(value (List ()))) (
 					(name "stable-release")
@@ -403,7 +403,7 @@
 			(url "github:roc-lang/roc-overlay"))))
 		(overlays ((
 			(environment "ci")
-			(overlays ("roc"))) (
+			(overlays ("roc" "redot"))) (
 			(environment "dump-bindings")
 			(overlays ("redot" "rex"))) (
 			(environment "web-export")
