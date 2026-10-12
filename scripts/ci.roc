@@ -732,9 +732,9 @@ phase_prepare : NodeId, List(EngineSpec) -> PhaseResult
 phase_prepare = |start_id, engines| {
     var $id = start_id
     var $cmds = []
-    var $terminals = []
+    var $clean_ids = []
 
-    # Clean trees we own
+    # Clean trees we own (must finish before any mkdir)
     roots = [
         ci_roots.dump_out,
         ci_roots.platform_out,
@@ -755,10 +755,12 @@ phase_prepare = |start_id, engines| {
             env: [],
         })
         $cmds = $cmds.append(c)
+        $clean_ids = $clean_ids.append($id)
         $id = $id + 1
     }
 
-    # mkdir -p per engine
+    # mkdir -p per engine — only after cleans complete
+    var $terminals = []
     for e in engines {
         dirs = [
             engine_dump_dir(e),
@@ -772,7 +774,7 @@ phase_prepare = |start_id, engines| {
         for d in dirs {
             c = Build.cmd({
                 id: $id,
-                depends_on: [],
+                depends_on: $clean_ids,  # ← critical
                 inputs: [],
                 outputs: [],
                 program: "mkdir",
