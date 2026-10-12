@@ -52,7 +52,7 @@ config = [
 	),
 	Shell("default", [Use("dev")]),
 	# depends on dump bindings, dev & web export...
-	Task("ci", [Use("ci"), Run(["scripts/ci.roc", "--", "--baseline=godot", "--engines=none", "--targets=muslx64", "--tests=all", "-Doptimize=Debug"])]),
+	Task("ci", [Use("ci"), Run(["scripts/ci.roc", "--", "--baseline=godot", "--engines=none", "--targets=x64musl", "--tests=all", "-Doptimize=Debug"])]),
 
 	#Task("check", [Use("dev"), Run(["scripts/check_all.roc"])]),
 	#Task("bundle", [Use("dev"), Run(["scripts/build_bundle.roc"])]),
