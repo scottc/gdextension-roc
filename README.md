@@ -200,14 +200,21 @@ The scripts folder is for platform generator maintainers, to perform a variety o
 Note: nix package manager is used to manage dev tooling.
 
 ```sh
-nix develop --command roc run scripts/ci.roc -- quick -Doptimize=Debug
-```
-```sh
-nix develop --command roc run scripts/ci.roc -- full deep-wasm -Doptimize=ReleaseFast
+nix develop --command roc run scripts/ci.roc -- \
+--baseline=godot4_3 \
+--engines=godot4_7,redot26,rex0 \
+--targets=auto \
+--tests=all \
+-Doptimize=Debug
 ```
 
 Experimental:
 
 ```sh
-nix run github:lukewilliamboswell/roc-blueprint/0.5.0 -- run ci
+nix run github:lukewilliamboswell/roc-blueprint/0.5.0 -- run ci -- \
+--baseline=godot4_3 \
+--engines=godot4_7 \
+--targets=muslx64 \
+--tests=none \
+-Doptimize=Debug
 ```
