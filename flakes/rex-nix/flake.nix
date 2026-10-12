@@ -8,18 +8,25 @@
 
   outputs =
     { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (
+    let
+      # Option B: overlay for roc-blueprint Overlay("rex", …)
+      overlay = final: prev: {
+        rex =
+          self.packages.${final.stdenv.hostPlatform.system}.rex
+            or (throw "rex-nix: no package for ${final.stdenv.hostPlatform.system}");
+      };
+    in
+    (flake-utils.lib.eachDefaultSystem (
       system:
       let
         pkgs = import nixpkgs { inherit system; };
 
         version = "0.0.1";
 
-        src =
-          pkgs.fetchurl {
-            url = "https://github.com/Redot-Engine/rex-release/releases/download/v${version}/linuxbsd-x86_64-mono.zip";
-            hash = "sha256-egOD4zGazAbbifKEPPLD8KNg/ahlIaffyULqA6jtzq8=";
-          };
+        src = pkgs.fetchurl {
+          url = "https://github.com/Redot-Engine/rex-release/releases/download/v${version}/linuxbsd-x86_64-mono.zip";
+          hash = "sha256-egOD4zGazAbbifKEPPLD8KNg/ahlIaffyULqA6jtzq8=";
+        };
 
         runtimeLibs = with pkgs; [
           libGL
@@ -99,5 +106,8 @@
         packages.rex = rex;
         packages.default = rex;
       }
-    );
+    ))
+    // {
+      overlays.default = overlay;
+    };
 }

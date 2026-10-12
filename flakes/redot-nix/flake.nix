@@ -8,7 +8,15 @@
 
   outputs =
     { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (
+    let
+      # Option B: overlay for roc-blueprint Overlay("redot", …)
+      overlay = final: prev: {
+        redot =
+          self.packages.${final.stdenv.hostPlatform.system}.redot
+            or (throw "redot-nix: no package for ${final.stdenv.hostPlatform.system}");
+      };
+    in
+    (flake-utils.lib.eachDefaultSystem (
       system:
       let
         pkgs = import nixpkgs { inherit system; };
@@ -104,11 +112,13 @@
         packages.default = redot;
         packages.redot = redot;
 
-        # optional: nix run github:you/redot-nix
         apps.default = {
           type = "app";
           program = "${redot}/bin/redot";
         };
       }
-    );
+    ))
+    // {
+      overlays.default = overlay;
+    };
 }

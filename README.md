@@ -3,17 +3,16 @@
 GDExtension Roc language bindings generator for Godot Game Engine, Redot Game Engine & Draconic Game Engine.
 
 > [!NOTE]   
-> This page is for the godot-roc **platform generator**.
->
 > For **game development** with godot-roc see our [Getting Started Guide](templates/ci/README.md).
+>
+> This page is for the godot-roc **platform generator**.
+
 
 ## About
 
 Godot-Roc lets you write game logic in [Roc](https://roc-lang.org/), "A [fast](https://roc-lang.org/fast), [friendly](https://roc-lang.org/friendly), [functional](https://roc-lang.org/functional) language". While [Godot Engine](https://godotengine.org/), [Redot Engine](https://www.redotengine.org/) or [Draconic Engine](https://github.com/Redot-Engine/DraconicEngine) handles scenes, rendering, and tooling.
 
-This project is for generating language binding glue & game dev DX.
-
-game engine <-> zig host runtime <-> roc platform API <-> game dev DX
+game engine/s <-> zig host runtime <-> roc platform APIs <-> game development experience
 
 ## Demo
 

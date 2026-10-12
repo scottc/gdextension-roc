@@ -3,16 +3,19 @@ app [config] { pf: platform "https://github.com/lukewilliamboswell/roc-blueprint
 config = [
 	Name("gdextension-roc-platform-generator"),
 	Overlay("roc", "github:roc-lang/roc-overlay"),
+	Overlay("redot", "path:./flakes/redot-nix"),
+	Overlay("rex", "path:./flakes/rex-nix"),
 	Environment(
 	    "dump-bindings",
 		[
+		    Overlays(["redot", "rex"]),
 		    Tools([
           		# engines
           		"godot",
                 "godotPackages_4_3.godot", # TODO: gd 4.0?
           		"godotPackages_4_5.godot",
-          		# "redot" , TODO: port /flakes/redot-nix/flake.nix
-          		# "rex" , TODO: port /flakes/rex-nix/flake.nix
+          		"redot",
+          		"rex",
 			]),
 		]
 	),
@@ -46,7 +49,6 @@ config = [
 	),
 	Shell("default", [Use("dev")]),
 	# depends on dump bindings, dev & web export...
-	Task("tgd", [Use("dump-bindings"), Run(["godot4.1", "--version"])]),
 	Task("ci", [Use("dev"), Run(["scripts/ci.roc", "--", "--baseline=godot4", "--engines=none", "--targets=auto", "--tests=all", "-Doptimize=Debug"])]),
 
 	#Task("check", [Use("dev"), Run(["scripts/check_all.roc"])]),
