@@ -57,6 +57,7 @@ config = [
 
 	#Task("check", [Use("dev"), Run(["scripts/check_all.roc"])]),
 	#Task("bundle", [Use("ci"), Run(["scripts/ci.roc", "--", "--bundle"])]),
+	Task("publish", [Use("ci"), Run(["scripts/ci.roc"])]),
 	#Task("test-bundle", [Use("ci"), Run(["scripts/ci.roc", "--", "--test=all"])]),
 	#Task("package-examples", [Use("dev"), Run(["scripts/package_examples.roc"])]),
 	#Task("package-docs", [Use("dev"), Run(["scripts/package_docs.roc"])]),
