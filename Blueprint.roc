@@ -21,7 +21,7 @@ config = [
 		]
 	),
 	Environment(
-		"ci",
+		"ci-env",
 		[
 			Overlays(["roc", "redot"]),
 			Command("roc", "rocpkgs.nightly-2026-09-27-a3ce7f1"),
@@ -30,8 +30,8 @@ config = [
 				# roc, via overlay...
 				"zig",
 				# engines
-          		"godotPackages_4_5.godot", # sane baseline
-                "godot", # latest godot
+          		#"godotPackages_4_5.godot", # sane baseline
+                #"godot", # latest godot
           		"redot", # latest redot
                 #"godotPackages_4_3.godot", # oldest godot for max compatibility...
           		#"rex", # When api dumps are working...
@@ -39,16 +39,21 @@ config = [
 		],
 	),
 	Environment(
-		"publish-stable",
+		"gh-publish-env",
 		[
 			Overlays(["roc", "redot"]),
 			Command("roc", "rocpkgs.nightly-2026-09-27-a3ce7f1"),
 			Tools([
-				# compilers
-				# roc, via overlay...
-				"zig",
-				"redot",
-				#"godot",
+			    "gh",
+    			# compilers
+    			# roc, via overlay...
+    			"zig",
+    			# engines
+          		"godotPackages_4_5.godot", # sane baseline
+                "godot", # latest godot
+          		"redot", # latest redot
+                #"godotPackages_4_3.godot", # oldest godot for max compatibility...
+          		#"rex", # When api dumps are working...
 			]),
 		],
 	),
@@ -71,11 +76,31 @@ config = [
 	),
 	Shell("default", [Use("dev")]),
 	# depends on dump bindings, dev & web export...
-	Task("ci", [Use("ci"), Run(["scripts/ci.roc", "--", "--baseline=redot", "--engines=none", "--targets=x64musl", "--tests=all", "-Doptimize=Debug"])]),
+	Task("ci", [
+	    Use("ci-env"),
+		Run([
+		    "scripts/ci.roc", "--",
+			"--baseline=redot",
+			"--engines=none",
+			"--targets=x64musl",
+			"--tests=all",
+			"-Doptimize=Debug"
+		])
+	]),
 
 	#Task("check", [Use("dev"), Run(["scripts/check_all.roc"])]),
 	#Task("bundle", [Use("ci"), Run(["scripts/ci.roc", "--", "--bundle"])]),
-	Task("publish", [Use("ci"), Run(["scripts/publish.roc", "--", "--publish", "-Doptimize=ReleaseFast"])]),
+	Task("publish", [
+	    Use("gh-publish-env"),
+		Run([
+		    "scripts/publish.roc", "--",
+			"--publish",
+			"--baseline=godot4.5",
+			"--engines=godot-latest,redot-latest",
+			"--targets=x64musl,wasm32",
+			"-Doptimize=ReleaseFast"
+		])
+	]),
 	#Task("test-bundle", [Use("ci"), Run(["scripts/ci.roc", "--", "--test=all"])]),
 	#Task("package-examples", [Use("dev"), Run(["scripts/package_examples.roc"])]),
 	#Task("package-docs", [Use("dev"), Run(["scripts/package_docs.roc"])]),

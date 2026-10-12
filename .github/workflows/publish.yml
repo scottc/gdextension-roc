@@ -6,131 +6,91 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Empty = nightly-YYYY-MM-DD-<sha7>"
+        description: "Empty = nightly-YYYY-MM-DD-<sha7> (from publish.roc)"
         type: string
         default: ""
-      mode:
-        type: choice
-        options: [full, quick]
-        default: full
       optimize:
         type: choice
         options: [Debug, ReleaseFast, ReleaseSafe, ReleaseSmall]
         default: ReleaseFast
-      deep_wasm:
-        type: boolean
-        default: true
+      targets:
+        description: "Comma-separated hosts (start small; grow later)"
+        type: string
+        default: "x64musl,wasm32"
+      baseline:
+        type: string
+        default: "godot4.5"
+      engines:
+        description: "Extra engines beyond baseline (comma-separated)"
+        type: string
+        default: "godot-latest,redot-latest"
 
 permissions:
   contents: write
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - uses: DeterminateSystems/nix-installer-action@main
       - uses: DeterminateSystems/magic-nix-cache-action@main
 
-      - name: Build platforms (no upload yet)
+      - name: Resolve publish args
+        id: meta
+        shell: bash
         run: |
-          set -eux
-          MODE="${{ inputs.mode || 'full' }}"
-          OPT="${{ inputs.optimize || 'ReleaseFast' }}"
-          ARGS=("$MODE" "-Doptimize=${OPT}")
-          if [ "${{ inputs.deep_wasm || true }}" = "true" ]; then
-            ARGS+=(deep-wasm)
-          fi
-          # Build only; publish step below uploads .tar.zst files correctly.
-          nix run github:lukewilliamboswell/roc-blueprint/0.5.0 -- run ci -- "${ARGS[@]}"
+          set -euxo pipefail
 
-      - name: Publish GitHub release (multi-platform assets)
+          OPT="${{ inputs.optimize || 'ReleaseFast' }}"
+          TARGETS="${{ inputs.targets || 'x64musl,wasm32' }}"
+          BASELINE="${{ inputs.baseline || 'godot4.5' }}"
+          ENGINES="${{ inputs.engines || 'godot-latest,redot-latest' }}"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG_IN="${{ inputs.tag }}"
+          else
+            # tag push: github.ref_name is the tag (e.g. v0.1.0-rc1)
+            TAG_IN="${{ github.ref_name }}"
+          fi
+
+          {
+            echo "optimize=${OPT}"
+            echo "targets=${TARGETS}"
+            echo "baseline=${BASELINE}"
+            echo "engines=${ENGINES}"
+          } >> "$GITHUB_OUTPUT"
+
+          if [ -n "$TAG_IN" ]; then
+            echo "tag_arg=--tag=${TAG_IN}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag_arg=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build + publish (notes + gh release via publish.roc)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          PUBLISH_TAG: ${{ inputs.tag || github.ref_name }}
+        shell: bash
         run: |
-          # Paste the shell block above.
-          # If workflow_dispatch with empty tag, clear PUBLISH_TAG so nightly-* is used:
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -z "${{ inputs.tag }}" ]; then
-            unset PUBLISH_TAG
-          fi
-          # ... then the publish script
-          set -eu
+          set -euxo pipefail
 
-          if [ -z "${GITHUB_TOKEN:-}" ]; then
-            echo "[publish] GITHUB_TOKEN required" >&2
-            exit 1
-          fi
-          if ! command -v gh >/dev/null 2>&1; then
-            echo "[publish] gh CLI not found" >&2
-            exit 1
-          fi
+          OPT='${{ steps.meta.outputs.optimize }}'
+          TARGETS='${{ steps.meta.outputs.targets }}'
+          BASELINE='${{ steps.meta.outputs.baseline }}'
+          ENGINES='${{ steps.meta.outputs.engines }}'
+          TAG_ARG='${{ steps.meta.outputs.tag_arg }}'
 
-          SHA="$(git rev-parse --short=7 HEAD)"
-          if [ -n "${PUBLISH_TAG:-}" ]; then
-            TAG="$PUBLISH_TAG"
-          else
-            TAG="nightly-$(date -u +%Y-%m-%d)-${SHA}"
-          fi
-
-          STAGING="release-assets"
-          rm -rf "$STAGING"
-          mkdir -p "$STAGING"
-
-          # Collect roc bundle artefacts; rename for human-readable multi-platform releases.
-          # Original hash filename is preserved inside the new name for cache/debug.
-          NOTES_FILE="$STAGING/NOTES.md"
-          {
-            echo "## godot-roc ${TAG}"
-            echo
-            echo "Commit: \`${SHA}\`"
-            echo
-            echo "### Platform URLs (paste into \`pf: platform \"…\"\`)"
-            echo
-          } >"$NOTES_FILE"
-
-          ASSETS=()
-          for eng in godot godot_4_5_1 redot; do
-            # roc bundle writes the .tar.zst into the bundle workspace cwd
-            shopt -s nullglob
-            files=(bundle-out/"$eng"/workspace/*.tar.zst)
-            shopt -u nullglob
-            if [ "${#files[@]}" -eq 0 ]; then
-              echo "[publish] warning: no .tar.zst for $eng" >&2
-              continue
-            fi
-            src="${files[0]}"
-            base="$(basename "$src" .tar.zst)"
-            dest="$STAGING/${eng}-platform-${base}.tar.zst"
-            cp -f "$src" "$dest"
-            ASSETS+=("$dest")
-
-            url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/$(basename "$dest")"
-            {
-              echo "- **${eng}**"
-              echo
-              echo "  \`${url}\`"
-              echo
-            } >>"$NOTES_FILE"
-          done
-
-          if [ "${#ASSETS[@]}" -eq 0 ]; then
-            echo "[publish] no platform bundles found" >&2
-            exit 1
-          fi
-
-          echo "[publish] creating release $TAG with ${#ASSETS[@]} asset(s)"
-          gh release create "$TAG" "${ASSETS[@]}" \
-            --title "godot-roc $TAG" \
-            --notes-file "$NOTES_FILE"
-
-      # - uses: actions/upload-artifact@v4
-      #   if: always()
-      #   with:
-      #     name: bundle-out-${{ github.run_id }}
-      #     path: bundle-out/
-      #     if-no-files-found: warn
-      #     retention-days: 14
+          # Extra args after Task defaults; publish.roc owns notes + gh release create.
+          # shellcheck disable=SC2086
+          nix run github:lukewilliamboswell/roc-blueprint/0.5.0 -- run publish -- \
+            --baseline="${BASELINE}" \
+            --engines="${ENGINES}" \
+            --targets="${TARGETS}" \
+            -Doptimize="${OPT}" \
+            ${TAG_ARG}
