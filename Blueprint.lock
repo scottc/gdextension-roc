@@ -49,6 +49,8 @@
 					(value (List ((Str "redot") (Str "rex"))))) (
 					(name "ci")
 					(value (List ((Str "roc") (Str "redot"))))) (
+					(name "publish-stable")
+					(value (List ((Str "roc") (Str "redot"))))) (
 					(name "nightly-release")
 					(value (List ()))) (
 					(name "stable-release")
@@ -406,6 +408,8 @@
 			(overlays ("roc" "redot"))) (
 			(environment "dump-bindings")
 			(overlays ("redot" "rex"))) (
+			(environment "publish-stable")
+			(overlays ("roc" "redot"))) (
 			(environment "web-export")
 			(overlays ("roc")))))
 		(sources ((

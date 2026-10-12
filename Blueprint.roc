@@ -12,16 +12,34 @@ config = [
 		    Overlays(["redot", "rex"]),
 		    Tools([
           		# engines
-          		"godot",
-                "godotPackages_4_3.godot", # TODO: gd 4.0?
-          		"godotPackages_4_5.godot",
-          		"redot",
-          		"rex",
+          		"godotPackages_4_5.godot", # sane baseline
+                "godot", # latest godot
+          		"redot", # latest redot
+                "godotPackages_4_3.godot", # oldest godot for max compatibility...
+          		"rex", # When api dumps are working...
 			]),
 		]
 	),
 	Environment(
 		"ci",
+		[
+			Overlays(["roc", "redot"]),
+			Command("roc", "rocpkgs.nightly-2026-09-27-a3ce7f1"),
+			Tools([
+				# compilers
+				# roc, via overlay...
+				"zig",
+				# engines
+          		"godotPackages_4_5.godot", # sane baseline
+                "godot", # latest godot
+          		"redot", # latest redot
+                #"godotPackages_4_3.godot", # oldest godot for max compatibility...
+          		#"rex", # When api dumps are working...
+			]),
+		],
+	),
+	Environment(
+		"publish-stable",
 		[
 			Overlays(["roc", "redot"]),
 			Command("roc", "rocpkgs.nightly-2026-09-27-a3ce7f1"),
@@ -57,7 +75,7 @@ config = [
 
 	#Task("check", [Use("dev"), Run(["scripts/check_all.roc"])]),
 	#Task("bundle", [Use("ci"), Run(["scripts/ci.roc", "--", "--bundle"])]),
-	Task("publish", [Use("ci"), Run(["scripts/ci.roc"])]),
+	Task("publish", [Use("ci"), Run(["scripts/publish.roc", "--", "--publish", "-Doptimize=ReleaseFast"])]),
 	#Task("test-bundle", [Use("ci"), Run(["scripts/ci.roc", "--", "--test=all"])]),
 	#Task("package-examples", [Use("dev"), Run(["scripts/package_examples.roc"])]),
 	#Task("package-docs", [Use("dev"), Run(["scripts/package_docs.roc"])]),
