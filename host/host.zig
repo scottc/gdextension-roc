@@ -10,10 +10,10 @@ pub const std_options: std.Options = .{
     .allow_stack_tracing = false,
 };
 
-const abi = @import("glue-out/redot/roc_platform_abi.zig");
-const api = @import("glue-out/redot/zig_platform_abi_impl.zig");
-const baseline_gde_if = @import("glue-out/redot/gdextension_interface.zig");
-const gde_call = @import("glue-out/redot/gde_call.zig");
+const abi = @import("baseline.zig").abi;
+const api = @import("baseline.zig").api;
+const baseline_gde_if = @import("baseline.zig").baseline_gde_if;
+const gde_call = @import("baseline.zig").gde_call;
 
 fn ctx() gde_call.Ctx {
     return .{ .iface = &g_engine_interface, .library = g_engine_library };

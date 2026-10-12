@@ -30,9 +30,9 @@ config = [
 				# roc, via overlay...
 				"zig",
 				# engines
-          		#"godotPackages_4_5.godot", # sane baseline
+          		"godotPackages_4_5.godot", # sane baseline
                 #"godot", # latest godot
-          		"redot", # latest redot
+          		#"redot", # latest redot
                 #"godotPackages_4_3.godot", # oldest godot for max compatibility...
           		#"rex", # When api dumps are working...
 			]),
@@ -80,14 +80,19 @@ config = [
 	    Use("ci-env"),
 		Run([
 		    "scripts/ci.roc", "--",
-			"--baseline=redot",
+			"--baseline=godot4.5",
 			"--engines=none",
 			"--targets=x64musl",
 			"--tests=all",
 			"-Doptimize=Debug"
 		])
 	]),
-
+	Task("ensure-godot", [
+	    Use("ci-env"),
+		Run([
+		    "godot4.5", "--version"
+		])
+	]),
 	#Task("check", [Use("dev"), Run(["scripts/check_all.roc"])]),
 	#Task("bundle", [Use("ci"), Run(["scripts/ci.roc", "--", "--bundle"])]),
 	Task("publish", [

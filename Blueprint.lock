@@ -47,9 +47,9 @@
 					(value (List ()))) (
 					(name "dump-bindings")
 					(value (List ((Str "redot") (Str "rex"))))) (
-					(name "ci")
+					(name "ci-env")
 					(value (List ((Str "roc") (Str "redot"))))) (
-					(name "publish-stable")
+					(name "gh-publish-env")
 					(value (List ((Str "roc") (Str "redot"))))) (
 					(name "nightly-release")
 					(value (List ()))) (
@@ -404,11 +404,11 @@
 			(name "roc")
 			(url "github:roc-lang/roc-overlay"))))
 		(overlays ((
-			(environment "ci")
+			(environment "ci-env")
 			(overlays ("roc" "redot"))) (
 			(environment "dump-bindings")
 			(overlays ("redot" "rex"))) (
-			(environment "publish-stable")
+			(environment "gh-publish-env")
 			(overlays ("roc" "redot"))) (
 			(environment "web-export")
 			(overlays ("roc")))))

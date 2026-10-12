@@ -1,7 +1,7 @@
 #!/usr/bin/env roc
 
 #
-# CI smoke: redot × x64musl only
+# CI smoke: godot4.5 × x64musl only
 #
 #   roc run scripts/ci.roc
 #   nix run github:lukewilliamboswell/roc-blueprint/0.5.0 -- run ci
@@ -28,12 +28,12 @@ PhaseResult : {
 
 ReplacePair : { find : Str, replace : Str }
 
-# Engine: redot (what is on PATH in the ci Blueprint env)
+# Engine: godot4.5 (what is on PATH in the ci Blueprint env)
 engine_slug : Str
-engine_slug = "redot"
+engine_slug = "godot4_5"
 
 engine_program : Str
-engine_program = "redot"
+engine_program = "godot4.5"
 
 # Host: x64musl only
 host_name : Str

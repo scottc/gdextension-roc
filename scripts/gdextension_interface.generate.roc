@@ -6,12 +6,12 @@
 ## Usage:
 ##   roc run scripts/gdextension_interface.generate.roc -- --engine=godot
 ##   roc run scripts/gdextension_interface.generate.roc -- --engine=godot4.5
-##   roc run scripts/gdextension_interface.generate.roc -- --engine=godot_4_5_1
+##   roc run scripts/gdextension_interface.generate.roc -- --engine=godot4_5
 ##   roc run scripts/gdextension_interface.generate.roc -- --engine=redot
 ##   roc run scripts/gdextension_interface.generate.roc -- --engine=rex
 ##
 ## Path slug (dump-out/ / host/glue-out/):
-##   godot | godot_4_5_1 | redot | rex
+##   godot | godot4_5 | redot | rex
 
 app [main!] {
     pf: platform "https://github.com/roc-lang/basic-cli/releases/download/0.23.0/GNN5tt2gKdX4dhawg4915C4YB193woHFdcCkz31fhGxv.tar.zst"
@@ -36,7 +36,7 @@ Item : { comment: CommentInfo, typedef: TypeDefInfo }
 
 Engine : [Godot, Godot4_5_1, Redot, Rex]
 
-## Accept CI cli ids (godot4.5) and path slugs (godot_4_5_1).
+## Accept CI cli ids (godot4.5) and path slugs (godot4_5).
 parse_engine : List(OsStr) -> Engine
 parse_engine = |args| {
     for a in args {
@@ -47,10 +47,10 @@ parse_engine = |args| {
                 "godot" => return Godot
                 "godot4.5" => return Godot4_5_1
                 "godot4.5.1" => return Godot4_5_1
-                "godot_4_5_1" => return Godot4_5_1
+                "godot4_5" => return Godot4_5_1
                 "redot" => return Redot
                 "rex" => return Rex
-                _ => crash "invalid --engine= flag, must be: godot, godot4.5, godot_4_5_1, redot or rex."
+                _ => crash "invalid --engine= flag, must be: godot, godot4.5, godot4_5, redot or rex."
             }
         }
     }
@@ -63,7 +63,7 @@ engine_str : Engine -> Str
 engine_str = |engine| {
     match engine {
         Godot => "godot"
-        Godot4_5_1 => "godot_4_5_1"
+        Godot4_5_1 => "godot4_5"
         Redot => "redot"
         Rex => "rex"
     }
