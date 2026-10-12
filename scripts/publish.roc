@@ -1034,7 +1034,8 @@ main! = |args| {
     var $cmds = prep.cmds
     var $bundle_terms = []
     # Global Zig serial token: last host compile of previous engine
-    var $zig_prior : List(NodeId) = []
+    $zig_prior : List(NodeId)
+    var $zig_prior = []
 
     for e in cfg.engines {
         Log.info!("engine=${e.slug}")
