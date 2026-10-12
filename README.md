@@ -1,6 +1,6 @@
 # [![Godot-Roc](brand/logo-stroke.plain.svg)](https://github.com/scottc/godot-roc)
 
-Roc language bindings generator for Godot Game Engine, Redot Game Engine & Draconic Game Engine.
+GDExtension Roc language bindings generator for Godot Game Engine, Redot Game Engine & Draconic Game Engine.
 
 > [!NOTE]   
 > This page is for the godot-roc **platform generator**.
@@ -204,4 +204,10 @@ nix develop --command roc run scripts/ci.roc -- quick -Doptimize=Debug
 ```
 ```sh
 nix develop --command roc run scripts/ci.roc -- full deep-wasm -Doptimize=ReleaseFast
+```
+
+Experimental:
+
+```sh
+nix run github:lukewilliamboswell/roc-blueprint/0.5.0 -- run ci
 ```

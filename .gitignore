@@ -7,3 +7,4 @@ smoke-out/
 
 # zig
 .zig-cache/
+.blueprint/

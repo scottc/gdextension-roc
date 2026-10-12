@@ -26,6 +26,7 @@
     # the differing behaviour can cause panics, makes development more tricky.
     # TODO: vendor the overlay?
     roc-nightly.url = "github:roc-lang/roc-overlay";
+    blueprint.url = "github:lukewilliamboswell/roc-blueprint/0.5.0";
 
     redot.url = "path:./flakes/redot-nix";
     redot.inputs.nixpkgs.follows = "nixpkgs";
@@ -34,7 +35,7 @@
     rex.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, flake-utils, roc-nightly, redot, rex, ... }:
+  outputs = { self, nixpkgs, flake-utils, roc-nightly, redot, rex, blueprint, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
@@ -42,6 +43,7 @@
         rocNightlyPkg = roc-nightly.packages.${system}.nightly-2026-09-27-a3ce7f1;
         redotPkg = redot.packages.${system}.redot;
         rexPkg = rex.packages.${system}.rex;
+        blueprintPkg = blueprint.packages.${system}.blueprint;
 
       in
       {
@@ -53,13 +55,14 @@
             pkgs.zig
             # rocPkg
             rocNightlyPkg
+            blueprintPkg
 
             # engines
             pkgs.godot # latest 4.7.1
             pkgs.godotPackages_4_5.godot # 4.5.1, why 4.5.1? most compatable/featureful, version with redot support etc.
             pkgs.godotPackages_4_3.godot # 4.3.x, ... more support is better then less?
-            redotPkg
-            rexPkg
+            redotPkg # latest 23.2
+            rexPkg # latest 0.0.1
 
             # Web wasm32-emscripten, support & tools.
             pkgs.emscripten # godot 4.5 docs expects emscripten 3.1.62+ when building web templates.
@@ -83,6 +86,7 @@
 # =Compilers=
 # roc:          $(roc version)
 # zig:          $(zig version)
+# blueprint:    $(blueprint --version)
 #
 # =Engines=
 # godot:        $(godot --version)
