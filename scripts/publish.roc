@@ -6,19 +6,19 @@
 #
 # Defaults:
 #   --baseline=godot4.5
-#   --engines=godot-latest,redot-latest
+#   --engines=godot-stable,redot-stable
 #   --targets=all
 #   -Doptimize=ReleaseFast
 #   --tag=  → nightly-YYYY-MM-DD-<sha7> if omitted
 #
 # Examples:
 #   roc run scripts/publish.roc -- \
-#     --baseline=godot4.5 --engines=godot-latest,redot-latest \
+#     --baseline=godot4.5 --engines=godot-stable,redot-stable \
 #     --targets=x64musl,wasm32 -Doptimize=ReleaseFast \
 #     --tag=nightly-2026-10-11-abc1234
 #
 #   roc run scripts/publish.roc -- \
-#     --baseline=godot4.5 --engines=godot-latest,redot-latest \
+#     --baseline=godot4.5 --engines=godot-stable,redot-stable \
 #     --tag=v0.1.0-rc1 -Doptimize=ReleaseFast
 #
 
@@ -240,9 +240,9 @@ parse_optimize = |args| {
 parse_engine_id : Str -> [Ok(EngineName), Err(Str)]
 parse_engine_id = |id| {
     match id {
-        "godot" | "godot-latest" => Ok(Godot)
+        "godot" | "godot-stable" => Ok(Godot)
         "godot4.5" | "godot4.5.1" | "godot4_5" => Ok(Godot451)
-        "redot" | "redot-latest" => Ok(Redot)
+        "redot" | "redot-stable" => Ok(Redot)
         _ => Err(id)
     }
 }
