@@ -184,25 +184,31 @@ The scripts folder is for platform generator maintainers, to perform a variety o
 
 - `roc glue ...`: generates the roc platform ABI glue.
 
+- `scripts/publish.roc`: Bundle & Publish a new tagged github release, nightly & stables.
+
 - `scripts/serve.roc`: To serve 'export to web' projects, so we can run wasm game in a web browser.
 
 ## Important tools & commands - For platform maintainers.
 
-- `nix flake update`: Upgrade the dev tools, you'll need to manually upgrade some important pins, see: `flake.nix`.
+- `blueprint update`: Upgrade the dev tools, you'll need to manually upgrade some important pins, see: `Blueprint.roc`.
 
-- `nix flake check`: Check the flake.
+- `blueprint check`: Check the blueprint.
 
-- `nix develop`: Enter the development environment.
+- `blueprint shell`: Enter the development environment.
 
 ## Build & Run Binding Generator - For platform maintainers.
 
-Note: nix package manager is used to manage dev tooling.
+Note: roc blueprint package manager is used to manage environments & tools.
 
 ```sh
-nix run github:lukewilliamboswell/roc-blueprint/0.5.0 -- run ci -- \
---baseline=godot4_3 \
---engines=godot4_7 \
---targets=muslx64 \
---tests=none \
+# nix run github:lukewilliamboswell/roc-blueprint/0.5.0 -- shell
+blueprint shell
+
+# nix run github:lukewilliamboswell/roc-blueprint/0.5.0 -- run ci -- \
+blueprint run ci \
+--baseline=godot4_5 \
+--engines=godot-stable,redot-stable \
+--targets=x64musl,wasm32 \
+--tests=all \
 -Doptimize=Debug
 ```

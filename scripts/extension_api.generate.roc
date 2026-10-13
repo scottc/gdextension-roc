@@ -287,13 +287,21 @@ parse_targets = |args| {
 render_targets_block : List(Str) -> Str
 render_targets_block = |wanted| {
     var $lines = ["        inputs_dir: \"targets/\","]
+    var $matched = 0.U64
+
     for row in all_host_rows {
         for w in wanted {
             if w == row.name {
                 $lines = $lines.append(row.entry)
+                $matched = $matched + 1
             }
         }
     }
+
+    if $matched == 0 {
+        crash "render_targets_block: no targets matched wanted=${Str.join_with(wanted, ",")}"
+    }
+
     body = Str.join_with($lines, "\n")
     \\    targets: {
     \\${body}
