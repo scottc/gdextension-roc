@@ -5,7 +5,8 @@ config = [
 	Overlay("roc", "github:roc-lang/roc-overlay"),
 	Overlay("redot", "path:./flakes/redot-nix"),
 	Overlay("rex", "path:./flakes/rex-nix"),
-	Environment("dev", [
+	Shell("default", [Use("dev-env")]),
+	Environment("dev-env", [
     	Overlays(["roc"]),
     	Command("roc", "rocpkgs.nightly-2026-09-27-a3ce7f1"),
   			Tools([
@@ -19,39 +20,11 @@ config = [
 			Overlays(["roc", "redot"]),
 			Command("roc", "rocpkgs.nightly-2026-09-27-a3ce7f1"),
 			Tools([
-				# compilers
-				# roc, via overlay...
 				"zig",
-				# engines
-          		"godotPackages_4_5.godot", # sane baseline
-                #"godot", # latest godot
-          		#"redot", # latest redot
-                #"godotPackages_4_3.godot", # oldest godot for max compatibility...
-          		#"rex", # When api dumps are working...
+          		"godotPackages_4_5.godot",
 			]),
 		],
 	),
-	Environment(
-		"gh-publish-env",
-		[
-			Overlays(["roc", "redot"]),
-			Command("roc", "rocpkgs.nightly-2026-09-27-a3ce7f1"),
-			Tools([
-			    "gh",
-    			# compilers
-    			# roc, via overlay...
-    			"zig",
-    			# engines
-          		"godotPackages_4_5.godot", # sane baseline
-                "godot", # latest godot
-          		"redot", # latest redot
-                #"godotPackages_4_3.godot", # oldest godot for max compatibility...
-          		#"rex", # When api dumps are working...
-			]),
-		],
-	),
-	Shell("default", [Use("dev")]),
-	# depends on dump bindings, dev & web export...
 	Task("ci", [
 	    Use("ci-env"),
 		Run([
@@ -63,8 +36,22 @@ config = [
 			"-Doptimize=Debug"
 		])
 	]),
-	#Task("check", [Use("dev"), Run(["scripts/check_all.roc"])]),
-	#Task("bundle", [Use("ci"), Run(["scripts/ci.roc", "--", "--bundle"])]),
+	Environment(
+		"gh-publish-env",
+		[
+			Overlays(["roc", "redot"]),
+			Command("roc", "rocpkgs.nightly-2026-09-27-a3ce7f1"),
+			Tools([
+			    "gh",
+    			"zig",
+          		"godotPackages_4_5.godot", # sane baseline
+                "godot", # latest godot
+          		"redot", # latest redot
+                #"godotPackages_4_3.godot", # oldest godot for max compatibility...
+          		#"rex", # When api dumps are working...
+			]),
+		],
+	),
 	Task("publish", [
 	    Use("gh-publish-env"),
 		Run([
@@ -76,8 +63,4 @@ config = [
 			"-Doptimize=ReleaseFast"
 		])
 	]),
-	#Task("test-bundle", [Use("ci"), Run(["scripts/ci.roc", "--", "--test=all"])]),
-	#Task("package-examples", [Use("dev"), Run(["scripts/package_examples.roc"])]),
-	#Task("package-docs", [Use("dev"), Run(["scripts/package_docs.roc"])]),
-	#Task("test-published", [Use("dev"), Run(["scripts/test_published.roc"])]),
 ]
