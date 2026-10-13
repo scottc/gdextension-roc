@@ -3,10 +3,9 @@
 GDExtension Roc language bindings generator for Godot Game Engine, Redot Game Engine & Draconic Game Engine.
 
 > [!NOTE]   
-> For **game development** with godot-roc see our [Getting Started Guide](templates/ci/README.md).
+> For **game development** with godot-roc see our [Getting Started Example](https://github.com/scottc/survivepg).
 >
 > This page is for the godot-roc **platform generator**.
-
 
 ## About
 
