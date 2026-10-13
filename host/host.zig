@@ -212,7 +212,12 @@ export fn godot_roc_register_class(
     return id;
 }
 
-export fn godot_roc_target_engine() callconv(.c) u8 {
+export fn godot_roc_current_engine() callconv(.c) u8 {
+    // 0 = Godot4_7 for this package
+    return 0;
+}
+
+export fn godot_roc_current_target() callconv(.c) u8 {
     // 0 = Godot4_7 for this package
     return 0;
 }

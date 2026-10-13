@@ -466,15 +466,31 @@ main! = |args| {
     \\import Host
     \\import engine/math/Vector3
     \\import GodotRoc
-    \\import Target
     \\# import EngineInfo
     \\
     \\## A generic godot-4.x-like game engine interface, with multi-engine & multi-version support.
     \\Engine := [].{
-    \\    target_engine! : () => Target.EngineKind
-    \\    target_engine! = || {
-    \\        _ = Host.target_engine!()
-    \\        Godot4_7 # hardcoded for now # TODO: multi-engine support.
+    \\    current_engine! : () => [Godot4_5Api, Godot4_7Api, Redot26_2Api]
+    \\    current_engine! = || {
+    \\        engine : [Godot4_5Api, Godot4_7Api, Redot26_2Api]
+    \\        engine = match Host.current_engine!() {
+    \\            0 => Godot4_5Api
+    \\            1 => Godot4_7Api
+    \\            2 => Redot26_2Api
+    \\            _ => crash "Host.current_engine!() got unexpected tag union value."
+    \\        }
+    \\        engine
+    \\    }
+    \\
+    \\    current_target! : () => [X64musl, Wasm32]
+    \\    current_target! = ||{
+    \\        target : [X64musl, Wasm32]
+    \\        target = match Host.current_target!() {
+    \\            0 => X64musl
+    \\            1 => Wasm32
+    \\            _ => crash "Host.current_target!() got unexpected tag union value."
+    \\        }
+    \\        target
     \\    }
     \\
     \\    engine_runtime_ok! : () => U8
@@ -492,10 +508,32 @@ main! = |args| {
     \\    print_warning! = |str|
     \\        Host.print_warning!(str)
     \\}
+    \\
+    \\CpuArch :: [X64musl, Wasm32]
+    \\
+    \\# hard coded for now, detect avaliable engines later... TODO: nest api call avalibility behind tag union
+    \\EngineApi :: [
+    \\    Godot4_5(Godot4_5Api),
+    \\    Godot4_7(Godot4_7Api),
+    \\    Redot26_2(Redot26_2Api),
+    \\]
+    \\
+    \\# Engine-specific extensions (can be empty records for now)
+    \\Godot4_5Api :: [].{ }          # pure baseline
+    \\Godot4_7Api :: [].{
+    \\    exclusive_spell = 5
+    \\    #exclusive_spell! : () => F32     # e.g. Godot-only ability
+    \\    #procedural_map_v2! : () => {}
+    \\}
+    \\Redot26_2Api :: [].{
+    \\    exclusive_map = 7.7
+    \\    #exclusive_ability! : () => U32   # Redot-only ability
+    \\    #redot_terrain_gen! : () => {}
+    \\}
     )?
     Path.join(roc_out_path, "Host.roc").write_utf8!(host_to_roc_source_str(decoded))?
     Path.join(roc_out_path, "EngineInfo.roc").write_utf8!(engine_info(decoded))?
-    Path.join(roc_out_path, "Target.roc").write_utf8!(target(decoded))?
+    #Path.join(roc_out_path, "Target.roc").write_utf8!(target(decoded))?
 
     Path.join(roc_out_path, "engine/GlobalConstants.roc").write_utf8!(global_constants_to_roc_source_str(decoded))?
     Path.join(roc_out_path, "engine/GlobalEnums.roc").write_utf8!(global_enums_to_roc_source_str(decoded))?
@@ -548,16 +586,8 @@ main! = |args| {
 
 target : ExtensionApi -> Str
 target = |_eapi| {
-    \\#import Host # circular import...
-    \\
-    \\#
-    \\Target := [].{
-    \\    EngineKind : [Godot4_7, Godot4_5, Redot26] # hard coded for now, detect avaliable engines later... TODO: nest api call avalibility behind tag union
-    \\
-    \\    # returns the current run-time engine... tag union, enforces engine call correctness...
-    \\    #target_engine! : () => EngineKind
-    \\    #target_engine! = Host.target_engine!
-    \\}
+    \\## The CpuArch Target
+
 }
 
 engine_info : ExtensionApi -> Str
@@ -640,7 +670,8 @@ math_type_names = [
 
 host_facade_symbols : List(Str)
 host_facade_symbols = [
-    "target_engine",
+    "current_engine", # TODO:
+    "current_target", # TODO:
     "engine_runtime_ok",
     "register_class",
     "print_error",
@@ -650,7 +681,8 @@ host_facade_symbols = [
 host_facade_decls : Str
 host_facade_decls =
     \\    # --- platform façade (host.zig MVP) ---
-    \\    target_engine! : () => U8
+    \\    current_engine! : () => U8  # TODO:
+    \\    current_target! : () => U8  # TODO:
     \\    engine_runtime_ok! : () => U8
     \\    register_class! : Str, Str => U32
     \\    print_error! : Str => {}
@@ -1227,7 +1259,6 @@ gen_platform_main_roc = |eapi, target_names| {
         "NativeStructures",
         "UtilityFunctions",
         "EngineInfo",
-        "Target",
     ]
 
     math_method_names =
@@ -1267,7 +1298,6 @@ gen_platform_main_roc = |eapi, target_names| {
     meta_imports =
         \\import Host
         \\import EngineInfo
-        \\import Target
         \\import engine/GlobalConstants
         \\import engine/GlobalEnums
         \\import engine/BuiltinClassSizes
@@ -1556,7 +1586,6 @@ host_to_roc_source_str = |eapi| {
         )
 
     \\# AUTO-GENERATED Host surface — signatures only; bodies via platform hosted → Zig
-    \\import Target
     \\${math_imports}
     \\
     \\Host := [].{

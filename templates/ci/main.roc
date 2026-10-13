@@ -5,7 +5,6 @@ app [ready!, process!, scene_init!, physics_process!] {
 
 # Top level multi-engine & multi-version platform
 import pf.Engine
-import pf.Target
 import pf.GodotRoc
 import pf.Host
 
@@ -31,28 +30,15 @@ run_smoke_tests! : () => {}
 run_smoke_tests! = || {
     Engine.print_warning!("========== godot-roc smoke tests ==========")
 
-    # The static engine versions that the platform was compiled against
-    # And thus are avaliable to use.
-    # Engine.print_warning!("[smoke] platform_api = ${Str.inspect(EngineInfo.platform_api)}")
-    # Engine exclusive APIs, will be gatekept behind a tag union...??
-
-    # The actual runtime engine version that is running.
-    Engine.print_warning!("[smoke] target_engine! = ${Str.inspect(Engine.target_engine!())}")
-
-    # TODO:
-    # Returns the current runtime engine
-    # from the avalible engines APIs baked into this .tar.
-    # if you need different versions, either compile platform from source with the engines.
-    # or submit a GH issue.
-    # _result = match Engine.target_engine!() {
-    #     Target.Godot4_7(godot47) => "gd: ${Str.inspect(godot47.do_advanced_shadows())}"
-    #     Target.Redot23(redot23) => "rd: ${Str.inspect(redot23.do_3d_terrain())}"
-    #     _ => crash "Runtime engine mis-match, use one of the other supported engines!"
-    # }
-
     # host enforcement of static version(s) == runtime version.
     ok = Engine.engine_runtime_ok!()
     Engine.print_warning!("[smoke] engine_runtime_ok! = ${ok.to_str()}")
+
+    ce = Engine.current_engine!()
+    Engine.print_warning!("[smoke] current_engine! = ${Str.inspect(ce)}")
+
+    ct = Engine.current_target!()
+    Engine.print_warning!("[smoke] current_target! = ${Str.inspect(ct)}")
 
     # ----- utilities (callUtility) -----
     m = UtilityFunctions.maxf!(3.0, 7.0)
