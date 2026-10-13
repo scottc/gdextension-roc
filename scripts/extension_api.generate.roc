@@ -266,8 +266,39 @@ all_host_rows = [
     },
 ]
 
-## --targets=all | auto | x64musl | wasm32,x64musl | …
-## auto / default → primary only (wasm32 + x64musl)
+## Split "a,b,c" on ',' (trim pieces; drop empties).
+split_comma : Str -> List(Str)
+split_comma = |s| {
+    bytes = s.to_utf8()
+    var $acc : List(Str) = []
+    var $cur : List(U8) = []
+    for b in bytes {
+        if b == 44.U8 {
+            # ','
+            part =
+                match Str.from_utf8($cur) {
+                    Ok(p) => p.trim()
+                    Err(_) => ""
+                }
+            if !part.is_empty() {
+                $acc = $acc.append(part)
+            }
+            $cur = []
+        } else {
+            $cur = $cur.append(b)
+        }
+    }
+    last =
+        match Str.from_utf8($cur) {
+            Ok(p) => p.trim()
+            Err(_) => ""
+        }
+    if !last.is_empty() {
+        $acc = $acc.append(last)
+    }
+    $acc
+}
+
 parse_targets : List(OsStr) -> List(Str)
 parse_targets = |args| {
     for a in args {
@@ -276,8 +307,15 @@ parse_targets = |args| {
             id = str.replace_first("--targets=", "")
             match id {
                 "all" => return all_host_rows.map(|r| r.name)
-                "auto" => return ["wasm32", "x64musl"] # TODO: detect local native cpu arch & os.
-                name => return [name]
+                "auto" => return ["wasm32", "x64musl"] # TODO: detect local native
+                raw => {
+                    parts = split_comma(raw)
+                    if parts.is_empty() {
+                        return ["wasm32", "x64musl"]
+                    } else {
+                        return parts
+                    }
+                }
             }
         }
     }
