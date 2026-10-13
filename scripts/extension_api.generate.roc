@@ -270,8 +270,10 @@ all_host_rows = [
 split_comma : Str -> List(Str)
 split_comma = |s| {
     bytes = s.to_utf8()
-    var $acc : List(Str) = []
-    var $cur : List(U8) = []
+    $acc : List(Str)
+    var $acc = []
+    $cur : List(U8)
+    var $cur = []
     for b in bytes {
         if b == 44.U8 {
             # ','
