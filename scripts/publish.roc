@@ -195,7 +195,7 @@ engine_specs = [
     },
     {
         name: Godot451,
-        slug: "godot_4_5_1",
+        slug: "godot4_5",
         cli_id: "godot4.5",
         program: "godot4.5",
     },
@@ -239,7 +239,7 @@ parse_engine_id : Str -> [Ok(EngineName), Err(Str)]
 parse_engine_id = |id| {
     match id {
         "godot" | "godot-latest" => Ok(Godot)
-        "godot4.5" | "godot4.5.1" | "godot_4_5_1" => Ok(Godot451)
+        "godot4.5" | "godot4.5.1" | "godot4_5" => Ok(Godot451)
         "redot" | "redot-latest" => Ok(Redot)
         _ => Err(id)
     }
@@ -254,7 +254,7 @@ engine_by_name = |n| {
     }
     {
         name: Godot451,
-        slug: "godot_4_5_1",
+        slug: "godot4_5",
         cli_id: "godot4.5",
         program: "godot4.5",
     }

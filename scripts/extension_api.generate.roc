@@ -5,12 +5,12 @@
 ## Usage:
 ##   roc run scripts/extension_api.generate.roc -- --engine=godot
 ##   roc run scripts/extension_api.generate.roc -- --engine=godot4.5
-##   roc run scripts/extension_api.generate.roc -- --engine=godot_4_5_1
+##   roc run scripts/extension_api.generate.roc -- --engine=godot4_5
 ##   roc run scripts/extension_api.generate.roc -- --engine=redot
 ##   roc run scripts/extension_api.generate.roc -- --engine=rex
 ##
 ## Path slug (dump-out/ / platform-out/ / host/glue-out/):
-##   godot | godot_4_5_1 | redot | rex
+##   godot | godot4_5 | redot | rex
 
 app [main!] {
     pf: platform "https://github.com/roc-lang/basic-cli/releases/download/0.23.0/GNN5tt2gKdX4dhawg4915C4YB193woHFdcCkz31fhGxv.tar.zst"
