@@ -466,25 +466,34 @@ main! = |args| {
     \\import Host
     \\import engine/math/Vector3
     \\import GodotRoc
-    \\# import EngineInfo
+    \\
+    \\# hard coded for now, detect avaliable arch later...
+    \\CpuArch : [X64musl, Wasm32]
+    \\
+    \\# hard coded for now, detect avaliable engines later... TODO: nest api call avalibility behind tag union
+    \\EngineApi : [
+    \\    Godot4_5(Str),
+    \\    Godot4_7(Str),
+    \\    Redot26_2(Str),
+    \\]
     \\
     \\## A generic godot-4.x-like game engine interface, with multi-engine & multi-version support.
     \\Engine := [].{
-    \\    current_engine! : () => [Godot4_5Api, Godot4_7Api, Redot26_2Api]
+    \\    current_engine! : () => EngineApi
     \\    current_engine! = || {
-    \\        engine : [Godot4_5Api, Godot4_7Api, Redot26_2Api]
+    \\        engine : EngineApi
     \\        engine = match Host.current_engine!() {
-    \\            0 => Godot4_5Api
-    \\            1 => Godot4_7Api
-    \\            2 => Redot26_2Api
+    \\            0 => Godot4_5("sdfd")
+    \\            1 => Godot4_7("hfghf")
+    \\            2 => Redot26_2("hgghfg")
     \\            _ => crash "Host.current_engine!() got unexpected tag union value."
     \\        }
     \\        engine
     \\    }
     \\
-    \\    current_target! : () => [X64musl, Wasm32]
+    \\    current_target! : () => CpuArch
     \\    current_target! = ||{
-    \\        target : [X64musl, Wasm32]
+    \\        target : CpuArch
     \\        target = match Host.current_target!() {
     \\            0 => X64musl
     \\            1 => Wasm32
@@ -509,14 +518,8 @@ main! = |args| {
     \\        Host.print_warning!(str)
     \\}
     \\
-    \\CpuArch :: [X64musl, Wasm32]
     \\
-    \\# hard coded for now, detect avaliable engines later... TODO: nest api call avalibility behind tag union
-    \\EngineApi :: [
-    \\    Godot4_5(Godot4_5Api),
-    \\    Godot4_7(Godot4_7Api),
-    \\    Redot26_2(Redot26_2Api),
-    \\]
+    \\
     \\
     \\# Engine-specific extensions (can be empty records for now)
     \\Godot4_5Api :: [].{ }          # pure baseline
