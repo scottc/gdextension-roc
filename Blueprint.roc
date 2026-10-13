@@ -5,21 +5,14 @@ config = [
 	Overlay("roc", "github:roc-lang/roc-overlay"),
 	Overlay("redot", "path:./flakes/redot-nix"),
 	Overlay("rex", "path:./flakes/rex-nix"),
-	Environment("dev", []), # ... todo
-	Environment(
-	    "dump-bindings",
-		[
-		    Overlays(["redot", "rex"]),
-		    Tools([
-          		# engines
-          		"godotPackages_4_5.godot", # sane baseline
-                "godot", # latest godot
-          		"redot", # latest redot
-                "godotPackages_4_3.godot", # oldest godot for max compatibility...
-          		"rex", # When api dumps are working...
+	Environment("dev", [
+    	Overlays(["roc"]),
+    	Command("roc", "rocpkgs.nightly-2026-09-27-a3ce7f1"),
+  			Tools([
+				"zig",
+                "godotPackages_4_5.godot",
 			]),
-		]
-	),
+	]),
 	Environment(
 		"ci-env",
 		[
@@ -57,23 +50,6 @@ config = [
 			]),
 		],
 	),
-	Environment("nightly-release", []),
-	Environment("stable-release", []),
-	Environment(
-		"web-export",
-		[
-			Overlays(["roc"]),
-			Command("roc", "rocpkgs.nightly-2026-09-27-a3ce7f1"),
-			Command("roc-stable", "rocpkgs.nightly-2026-09-27-a3ce7f1"),
-			Tools([
-			    "godot",
-				"godot-export-templates-bin",
-				"emscripten",
-                #"zig", # [Optional] we use zig's "zig wasm-ld" for testing if objects are linkable.
-				#"wabt", # [Optional] we use wasm-objdump to inspect.
-			]),
-		],
-	),
 	Shell("default", [Use("dev")]),
 	# depends on dump bindings, dev & web export...
 	Task("ci", [
@@ -85,12 +61,6 @@ config = [
 			"--targets=x64musl",
 			"--tests=all",
 			"-Doptimize=Debug"
-		])
-	]),
-	Task("ensure-godot", [
-	    Use("ci-env"),
-		Run([
-		    "godot4.5", "--version"
 		])
 	]),
 	#Task("check", [Use("dev"), Run(["scripts/check_all.roc"])]),
