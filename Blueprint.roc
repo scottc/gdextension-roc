@@ -101,7 +101,7 @@ config = [
 		    "scripts/publish.roc", "--",
 			"--publish",
 			"--baseline=godot4.5",
-			"--engines=godot-latest,redot-latest",
+			"--engines=godot-stable,redot-stable",
 			"--targets=x64musl,wasm32",
 			"-Doptimize=ReleaseFast"
 		])

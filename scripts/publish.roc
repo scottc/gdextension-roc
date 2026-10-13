@@ -14,7 +14,8 @@
 # Examples:
 #   roc run scripts/publish.roc -- \
 #     --baseline=godot4.5 --engines=godot-latest,redot-latest \
-#     -Doptimize=ReleaseFast --tag=nightly-2026-10-11-abc1234
+#     --targets=x64musl,wasm32 -Doptimize=ReleaseFast \
+#     --tag=nightly-2026-10-11-abc1234
 #
 #   roc run scripts/publish.roc -- \
 #     --baseline=godot4.5 --engines=godot-latest,redot-latest \
@@ -73,6 +74,7 @@ PublishOpts : {
 }
 
 PubConfig : {
+    baseline : EngineSpec,
     engines : List(EngineSpec),
     hosts : List(HostTarget),
     optimize : Optimize,
@@ -339,8 +341,9 @@ parse_engines = |args, baseline| {
 parse_targets : List(Str) -> List(HostTarget)
 parse_targets = |args| {
     match flag_value(args, "--targets=") {
-        Some("all") | None => host_targets
-        Some("auto") => {
+        Some("all") => host_targets
+        Some("auto") | None => {
+            # Default publish targets: x64musl + wasm32
             var $out = []
             for h in host_targets {
                 if h.name_str == "wasm32" or h.name_str == "x64musl" {
@@ -360,7 +363,13 @@ parse_targets = |args| {
                 }
             }
             if $out.len() == 0 {
-                host_targets
+                var $fallback = []
+                for h in host_targets {
+                    if h.name_str == "wasm32" or h.name_str == "x64musl" {
+                        $fallback = $fallback.append(h)
+                    }
+                }
+                $fallback
             } else {
                 $out
             }
@@ -380,6 +389,7 @@ parse_config : List(Str) -> PubConfig
 parse_config = |args| {
     baseline = parse_baseline(args)
     {
+        baseline,
         engines: parse_engines(args, baseline),
         hosts: parse_targets(args),
         optimize: parse_optimize(args),
@@ -402,6 +412,16 @@ engine_glue_dir = |e| "host/glue-out/${e.slug}"
 
 engine_bundle_dir : EngineSpec -> Str
 engine_bundle_dir = |e| "bundle-out/${e.slug}"
+
+## Human-readable engine label for release notes / asset names
+engine_label : EngineSpec -> Str
+engine_label = |e| {
+    match e.name {
+        Godot => "godot (latest)"
+        Godot451 => "godot4.5 (baseline)"
+        Redot => "redot (latest)"
+    }
+}
 
 optimize_str : Optimize -> Str
 optimize_str = |o| {
@@ -525,7 +545,7 @@ phase_prepare = |start_id, engines| {
     var $cmds = []
     var $clean_ids = []
 
-    roots = ["dump-out", "platform-out", "host/glue-out", "bundle-out"]
+    roots = ["dump-out", "platform-out", "host/glue-out", "bundle-out", "release-assets"]
     for r in roots {
         c = Build.cmd({
             id: $id,
@@ -807,15 +827,10 @@ zig_host_args = |host, opt, out_path| {
 }
 
 ## Sequential Zig host compiles (one at a time).
-##
-## glue_ids     — this engine's glue must finish first
-## prior_ids    — previous engine's last host (or [] for first engine)
-##                so only one Zig runs globally across the whole publish graph
 phase_hosts_engine : NodeId, List(NodeId), List(NodeId), EngineSpec, List(HostTarget), Optimize -> PhaseResult
 phase_hosts_engine = |start_id, glue_ids, prior_ids, eng, hosts, opt| {
     var $id = start_id
     var $cmds = []
-    # Chain: each compile waits on the previous compile (or glue+prior for the first)
     var $prev = List.concat(glue_ids, prior_ids)
     var $last = $prev
 
@@ -850,7 +865,6 @@ phase_hosts_engine = |start_id, glue_ids, prior_ids, eng, hosts, opt| {
             env: [],
         })
         $cmds = $cmds.append(c)
-        # Next host waits only on this compile (not on glue again)
         $prev = [$id]
         $last = [$id]
         $id = $id + 1
@@ -921,8 +935,11 @@ phase_bundle_engine = |start_id, host_ids, eng, hosts| {
     { cmds: $cmds, terminal_ids: [move_id], next_id: $id }
 }
 
-phase_publish : NodeId, List(NodeId), List(EngineSpec), PublishOpts -> PhaseResult
-phase_publish = |start_id, depends_on, engines, opts| {
+## Stage labeled assets + NOTES.md, then gh release create.
+## Asset name: <slug>-platform-<original-hash>.tar.zst
+## Roc only needs the URL body; filename is for humans.
+phase_publish : NodeId, List(NodeId), EngineSpec, List(EngineSpec), PublishOpts -> PhaseResult
+phase_publish = |start_id, depends_on, baseline, engines, opts| {
     tag_line =
         match opts.tag {
             Tag(t) => Str.concat("TAG='", Str.concat(t, "'\n"))
@@ -936,10 +953,30 @@ phase_publish = |start_id, depends_on, engines, opts| {
                 )
         }
 
-    var $asset_globs = ""
+    # Emit one staging stanza per engine (slug + label baked in at graph-build time)
+    var $stage_parts : List(Str) = []
     for e in engines {
-        $asset_globs = Str.concat($asset_globs, Str.concat(engine_bundle_dir(e), " "))
+        is_base =
+            if e.name == baseline.name {
+                "yes"
+            } else {
+                "no"
+            }
+        $stage_parts =
+            List.concat(
+                $stage_parts,
+                [
+                    "stage_engine '",
+                    e.slug,
+                    "' '",
+                    engine_label(e),
+                    "' '",
+                    is_base,
+                    "'\n",
+                ],
+            )
     }
+    stage_loop = Str.join_with($stage_parts, "")
 
     script =
         Str.join_with(
@@ -955,38 +992,189 @@ phase_publish = |start_id, depends_on, engines, opts| {
                 "  echo \"[publish] gh CLI not found\" >&2\n",
                 "  exit 1\n",
                 "fi\n",
+                "REPO=\"",
+                sh_dollar_brace("GITHUB_REPOSITORY:-"),
+                "\"\n",
+                "if [ -z \"$REPO\" ]; then\n",
+                "  REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)\n",
+                "fi\n",
+                "if [ -z \"$REPO\" ]; then\n",
+                "  echo \"[publish] GITHUB_REPOSITORY unset and gh repo view failed\" >&2\n",
+                "  exit 1\n",
+                "fi\n",
                 tag_line,
+                "SHA=$(git rev-parse --short=7 HEAD 2>/dev/null || echo nogit)\n",
+                "STAGING=release-assets\n",
+                "rm -rf \"$STAGING\"\n",
+                "mkdir -p \"$STAGING\"\n",
+                "NOTES=\"$STAGING/NOTES.md\"\n",
                 "ASSETS=()\n",
-                "for d in ",
-                $asset_globs,
-                "; do\n",
-                "  [ -d \"$d\" ] || continue\n",
-                "  # shellcheck disable=SC2206\n",
-                "  files=(\"$d\"/*.tar.zst)\n",
-                "  if [ ! -e \"",
-                sh_dollar_brace("files[0]"),
-                "\" ]; then\n",
-                "    echo \"[publish] no .tar.zst under $d\" >&2\n",
-                "    continue\n",
+                "URLS=()          # parallel to ASSETS: download URL\n",
+                "LABELS=()        # parallel: human label\n",
+                "SLUGS=()         # parallel: engine slug\n",
+                "IS_BASE=()       # parallel: yes|no\n",
+                "\n",
+                "stage_engine() {\n",
+                "  _slug=\"$1\"\n",
+                "  _label=\"$2\"\n",
+                "  _base=\"$3\"\n",
+                "  _dir=\"bundle-out/$_slug\"\n",
+                "  if [ ! -d \"$_dir\" ]; then\n",
+                "    echo \"[publish] missing $_dir\" >&2\n",
+                "    return 0\n",
                 "  fi\n",
-                "  for f in ",
-                sh_dollar_brace("files[@]"),
-                "; do\n",
-                "    ASSETS+=(\"$f\")\n",
-                "  done\n",
-                "done\n",
+                "  # shellcheck disable=SC2206\n",
+                "  _files=(\"$_dir\"/*.tar.zst)\n",
+                "  if [ ! -e \"",
+                sh_dollar_brace("_files[0]"),
+                "\" ]; then\n",
+                "    echo \"[publish] no .tar.zst under $_dir\" >&2\n",
+                "    return 0\n",
+                "  fi\n",
+                "  _src=\"",
+                sh_dollar_brace("_files[0]"),
+                "\"\n",
+                "  _hash=$(basename \"$_src\" .tar.zst)\n",
+                "  _dest=\"$STAGING/${_slug}-platform-${_hash}.tar.zst\"\n",
+                "  cp -f \"$_src\" \"$_dest\"\n",
+                "  ASSETS+=(\"$_dest\")\n",
+                "  URLS+=(\"https://github.com/${REPO}/releases/download/${TAG}/$(basename \"$_dest\")\")\n",
+                "  LABELS+=(\"$_label\")\n",
+                "  SLUGS+=(\"$_slug\")\n",
+                "  IS_BASE+=(\"$_base\")\n",
+                "  echo \"[publish] staged $(basename \"$_dest\")\"\n",
+                "}\n",
+                "\n",
+                stage_loop,
+                "\n",
                 "if [ ",
                 sh_dollar_brace("#ASSETS[@]"),
                 " -eq 0 ]; then\n",
                 "  echo \"[publish] no assets to upload\" >&2\n",
                 "  exit 1\n",
                 "fi\n",
-                "echo \"[publish] release $TAG (\"",
+                "\n",
+                "# ---- NOTES.md ----\n",
+                "{\n",
+                "  echo \"## godot-roc ${TAG}\"\n",
+                "  echo\n",
+                "  echo \"Commit: \\`${SHA}\\`\"\n",
+                "  echo\n",
+                "  echo \"### Assets\"\n",
+                "  echo\n",
+                "  i=0\n",
+                "  while [ \"$i\" -lt ",
                 sh_dollar_brace("#ASSETS[@]"),
-                "\" assets)\"\n",
+                " ]; do\n",
+                "    echo \"- **",
+                sh_dollar_brace("LABELS[$i]"),
+                "** (\\`",
+                sh_dollar_brace("SLUGS[$i]"),
+                "\\`)\"\n",
+                "    echo \"  - file: \\`$(basename \"",
+                sh_dollar_brace("ASSETS[$i]"),
+                "\")\\`\"\n",
+                "    echo \"  - url: \\`",
+                sh_dollar_brace("URLS[$i]"),
+                "\\`\"\n",
+                "    echo\n",
+                "    i=$((i + 1))\n",
+                "  done\n",
+                "  echo \"### Getting started\"\n",
+                "  echo\n",
+                "  echo \"Pick **one** platform URL below (uncomment / swap as needed).\"\n",
+                "  echo\n",
+                "  i=0\n",
+                "  while [ \"$i\" -lt ",
+                sh_dollar_brace("#ASSETS[@]"),
+                " ]; do\n",
+                "    _lab=\"",
+                sh_dollar_brace("LABELS[$i]"),
+                "\"\n",
+                "    _url=\"",
+                sh_dollar_brace("URLS[$i]"),
+                "\"\n",
+                "    _base=\"",
+                sh_dollar_brace("IS_BASE[$i]"),
+                "\"\n",
+                "    echo \"#### ${_lab}\"\n",
+                "    echo\n",
+                "    echo '```roc'\n",
+                "    echo 'app [ready!, process!, scene_init!, physics_process!] {'\n",
+                "    if [ \"$_base\" = \"yes\" ]; then\n",
+                "      echo \"    # [baseline] ${_lab}\"\n",
+                "      echo \"    pf: platform \\\"${_url}\\\",\"\n",
+                "    else\n",
+                "      echo \"    # ${_lab}\"\n",
+                "      echo \"    # pf: platform \\\"${_url}\\\",\"\n",
+                "    fi\n",
+                "    echo '}'\n",
+                "    echo\n",
+                "    echo 'scene_init! : () => {}'\n",
+                "    echo 'scene_init! = || {'\n",
+                "    echo '    # ...'\n",
+                "    echo '    {}'\n",
+                "    echo '}'\n",
+                "    echo\n",
+                "    echo 'ready! : () => {}'\n",
+                "    echo 'ready! = || {'\n",
+                "    echo '    # ...'\n",
+                "    echo '    {}'\n",
+                "    echo '}'\n",
+                "    echo\n",
+                "    echo 'process! : GodotRoc.ClassId, F64 => {}'\n",
+                "    echo 'process! = |_class_id, _delta| {'\n",
+                "    echo '    # ...'\n",
+                "    echo '    {}'\n",
+                "    echo '}'\n",
+                "    echo\n",
+                "    echo 'physics_process! : GodotRoc.ClassId, F64 => {}'\n",
+                "    echo 'physics_process! = |class_id, delta| {'\n",
+                "    echo '    # ...'\n",
+                "    echo '    {}'\n",
+                "    echo '}'\n",
+                "    echo '```'\n",
+                "    echo\n",
+                "    i=$((i + 1))\n",
+                "  done\n",
+                "  echo \"### All platforms in one app header (pick one)\"\n",
+                "  echo\n",
+                "  echo '```roc'\n",
+                "  echo 'app [ready!, process!, scene_init!, physics_process!] {'\n",
+                "  i=0\n",
+                "  while [ \"$i\" -lt ",
+                sh_dollar_brace("#ASSETS[@]"),
+                " ]; do\n",
+                "    _lab=\"",
+                sh_dollar_brace("LABELS[$i]"),
+                "\"\n",
+                "    _url=\"",
+                sh_dollar_brace("URLS[$i]"),
+                "\"\n",
+                "    _base=\"",
+                sh_dollar_brace("IS_BASE[$i]"),
+                "\"\n",
+                "    if [ \"$_base\" = \"yes\" ]; then\n",
+                "      echo \"    # [baseline] ${_lab}\"\n",
+                "      echo \"    pf: platform \\\"${_url}\\\",\"\n",
+                "    else\n",
+                "      echo \"    # ${_lab}\"\n",
+                "      echo \"    # pf: platform \\\"${_url}\\\",\"\n",
+                "    fi\n",
+                "    i=$((i + 1))\n",
+                "  done\n",
+                "  echo '}'\n",
+                "  echo '```'\n",
+                "} >\"$NOTES\"\n",
+                "\n",
+                "echo \"[publish] release $TAG (",
+                sh_dollar_brace("#ASSETS[@]"),
+                " assets)\"\n",
                 "gh release create \"$TAG\" ",
                 sh_dollar_brace("ASSETS[@]"),
-                " --title \"godot-roc $TAG\" --notes \"Platform bundles for $TAG\"\n",
+                " \\\n",
+                "  --title \"godot-roc $TAG\" \\\n",
+                "  --notes-file \"$NOTES\"\n",
             ],
             "",
         )
@@ -998,7 +1186,7 @@ phase_publish = |start_id, depends_on, engines, opts| {
         outputs: [],
         program: "sh",
         args: ["-c", script],
-        description: "GitHub release publish (*.tar.zst)",
+        description: "GitHub release (labeled assets + notes)",
         cwd: "",
         env: [],
     })
@@ -1020,6 +1208,7 @@ main! = |args| {
 
     Log.info!("Publish — engine × host matrix (Zig hosts sequential)")
     Log.info!("optimize=${optimize_str(cfg.optimize)}")
+    Log.info!("baseline=${cfg.baseline.slug}")
     Log.info!("engines:")
     for e in cfg.engines {
         Log.info!("  - ${e.slug} (cli=${e.cli_id})")
@@ -1033,9 +1222,7 @@ main! = |args| {
     var $id = prep.next_id
     var $cmds = prep.cmds
     var $bundle_terms = []
-    # Global Zig serial token: last host compile of previous engine
-    $zig_prior : List(NodeId)
-    var $zig_prior = []
+    var $zig_prior : List(NodeId) = []
 
     for e in cfg.engines {
         Log.info!("engine=${e.slug}")
@@ -1048,7 +1235,6 @@ main! = |args| {
         $cmds = List.concat($cmds, g.cmds)
         $id = g.next_id
 
-        # Sequential within engine + chained across engines
         h = phase_hosts_engine($id, g.terminal_ids, $zig_prior, e, cfg.hosts, cfg.optimize)
         $cmds = List.concat($cmds, h.cmds)
         $id = h.next_id
@@ -1060,7 +1246,7 @@ main! = |args| {
         $bundle_terms = List.concat($bundle_terms, b.terminal_ids)
     }
 
-    pub = phase_publish($id, $bundle_terms, cfg.engines, cfg.publish)
+    pub = phase_publish($id, $bundle_terms, cfg.baseline, cfg.engines, cfg.publish)
     $cmds = List.concat($cmds, pub.cmds)
 
     Log.info!("total cmds=${$cmds.len().to_str()}")
