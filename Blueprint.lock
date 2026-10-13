@@ -43,7 +43,7 @@
 						(value (Bool true))))))))))) (
 				(name "overlays")
 				(value (Attrs ((
-					(name "dev")
+					(name "dev-env")
 					(value (List ((Str "roc"))))) (
 					(name "ci-env")
 					(value (List ((Str "roc") (Str "redot"))))) (
@@ -398,7 +398,7 @@
 		(overlays ((
 			(environment "ci-env")
 			(overlays ("roc" "redot"))) (
-			(environment "dev")
+			(environment "dev-env")
 			(overlays ("roc"))) (
 			(environment "gh-publish-env")
 			(overlays ("roc" "redot")))))
