@@ -45,8 +45,11 @@ var g_roc_fba_state: std.heap.FixedBufferAllocator = undefined;
 
 const MAX_CLASSES = 32;
 const MAX_NAME_LEN = 63;
+const USER_SLOT_COUNT: usize = 16;
 var g_godot_roc_classes: [MAX_CLASSES]GodotRocClassInfo = undefined;
 var g_godot_roc_class_count: usize = 0;
+var g_next_instance_id: u64 = 1;
+var g_godot_roc_current_instance: ?*GodotRocObjectInstance = null;
 
 // wherever you used to set the current instance:
 // api.g_godot_roc_current = @ptrCast(instance_ptr); // ?*GodotRocObjectInstance → ?*anyopaque
@@ -225,6 +228,46 @@ export fn godot_roc_current_target() callconv(.c) u8 {
 export fn godot_roc_engine_runtime_ok() callconv(.c) u8 {
     // Optional: compare get_godot_version major/minor to 4/7
     return 1;
+}
+
+export fn godot_roc_instance_id() callconv(.c) u64 {
+    const self = requireCurrentInstance() orelse return 0;
+    return self.instance_id;
+}
+
+export fn godot_roc_instance_class_id() callconv(.c) u32 {
+    const self = requireCurrentInstance() orelse return 0;
+    return self.class_id;
+}
+
+export fn godot_roc_user_slot_count() callconv(.c) u64 {
+    return USER_SLOT_COUNT;
+}
+
+export fn godot_roc_user_slot_get(index: u64) callconv(.c) u64 {
+    const self = requireCurrentInstance() orelse return 0;
+    if (index >= USER_SLOT_COUNT) return 0;
+    return self.user_slots[@intCast(index)];
+}
+
+export fn godot_roc_user_slot_set(index: u64, value: u64) callconv(.c) void {
+    const self = requireCurrentInstance() orelse return;
+    if (index >= USER_SLOT_COUNT) {
+        printError("user_slot_set: index {d} >= {d}\n", .{ index, USER_SLOT_COUNT });
+        return;
+    }
+    self.user_slots[@intCast(index)] = value;
+}
+
+/// Bit-cast helpers so apps do not hand-roll endian tricks in Roc for floats.
+export fn godot_roc_user_slot_get_f32(index: u64) callconv(.c) f32 {
+    const bits = godot_roc_user_slot_get(index);
+    return @bitCast(@as(u32, @truncate(bits)));
+}
+
+export fn godot_roc_user_slot_set_f32(index: u64, value: f32) callconv(.c) void {
+    const bits: u32 = @bitCast(value);
+    godot_roc_user_slot_set(index, @as(u64, bits));
 }
 
 // ---------------------------------------------------------------------------
@@ -667,6 +710,10 @@ const GodotRocClassInfo = struct {
 const GodotRocObjectInstance = struct {
     object: baseline_gde_if.GDExtensionObjectPtr,
     class_id: u32,
+    instance_id: u64,
+    /// App-defined layout. Roc interprets indices (hp, mana, flags, …).
+    /// F32 lives in the low 32 bits via @bitCast; U32 similarly.
+    user_slots: [USER_SLOT_COUNT]u64 = [_]u64{0} ** USER_SLOT_COUNT,
 };
 
 fn requireCurrentObject() baseline_gde_if.GDExtensionObjectPtr { // ?*GodotRocObjectInstance
@@ -696,13 +743,13 @@ fn instanceAllocator() std.mem.Allocator {
 }
 
 fn createInstance(
-    class_userdata: ?*anyopaque,
+    p_class_userdata: ?*anyopaque,
     notify_postinitialize: baseline_gde_if.GDExtensionBool,
 ) callconv(.c) baseline_gde_if.GDExtensionObjectPtr {
     _ = notify_postinitialize;
     printWarn("createInstance(...)\n", .{});
 
-    const info: *const GodotRocClassInfo = @ptrCast(@alignCast(class_userdata orelse return null));
+    const info: *const GodotRocClassInfo = @ptrCast(@alignCast(p_class_userdata orelse return null));
 
     var parent_sn = gde_call.makeStringName(ctx(), info.parentZ());
     defer gde_call.destroyStringName(ctx(), &parent_sn);
@@ -713,32 +760,44 @@ fn createInstance(
     if (obj == null) return null;
 
     const self = instanceAllocator().create(GodotRocObjectInstance) catch return null;
-    self.* = .{ .object = obj, .class_id = info.class_id };
+    self.* = .{
+        .object = obj,
+        .class_id = info.class_id,
+        .instance_id = g_next_instance_id,
+        .user_slots = [_]u64{0} ** USER_SLOT_COUNT,
+    };
+    g_next_instance_id += 1;
 
     g_engine_interface.object_set_instance(obj, @ptrCast(&class_sn), @ptrCast(self));
     return obj;
 }
 
 fn recreateInstance(
-    class_userdata: ?*anyopaque,
-    object: baseline_gde_if.GDExtensionObjectPtr,
+    p_class_userdata: ?*anyopaque,
+    p_object: baseline_gde_if.GDExtensionObjectPtr,
 ) callconv(.c) baseline_gde_if.GDExtensionClassInstancePtr {
     printWarn("recreateInstance(...)\n", .{});
-    const info: *const GodotRocClassInfo = @ptrCast(@alignCast(class_userdata orelse return null));
+    const info: *const GodotRocClassInfo = @ptrCast(@alignCast(p_class_userdata orelse return null));
 
     const self = instanceAllocator().create(GodotRocObjectInstance) catch return null;
-    self.* = .{ .object = object, .class_id = info.class_id };
+    self.* = .{
+        .object = p_object,
+        .class_id = info.class_id,
+        .instance_id = g_next_instance_id,
+        .user_slots = [_]u64{0} ** USER_SLOT_COUNT,
+    };
+    g_next_instance_id += 1;
 
     var class_sn = gde_call.makeStringName(ctx(), info.nameZ());
     defer gde_call.destroyStringName(ctx(), &class_sn);
-    g_engine_interface.object_set_instance(object, @ptrCast(&class_sn), @ptrCast(self));
+    g_engine_interface.object_set_instance(p_object, @ptrCast(&class_sn), @ptrCast(self));
     return @ptrCast(self);
 }
 
-fn freeInstance(class_userdata: ?*anyopaque, instance: baseline_gde_if.GDExtensionClassInstancePtr) callconv(.c) void {
-    _ = class_userdata;
+fn freeInstance(p_class_userdata: ?*anyopaque, p_instance: baseline_gde_if.GDExtensionClassInstancePtr) callconv(.c) void {
+    _ = p_class_userdata;
     printWarn("freeInstance(...)\n", .{});
-    const self: *GodotRocObjectInstance = @ptrCast(@alignCast(instance));
+    const self: *GodotRocObjectInstance = @ptrCast(@alignCast(p_instance));
     instanceAllocator().destroy(self);
 }
 
@@ -770,6 +829,10 @@ fn registerClass(info: *GodotRocClassInfo) void {
     printWarn("registered {s} : {s} (id={d})\n", .{ info.nameZ(), info.parentZ(), info.class_id });
 }
 
+fn requireCurrentInstance() ?*GodotRocObjectInstance {
+    return g_godot_roc_current_instance;
+}
+
 // ---------------------------------------------------------------------------
 // Virtuals / editor hint
 // ---------------------------------------------------------------------------
@@ -796,44 +859,104 @@ fn isEditorHint() bool {
 }
 
 fn onReady(
-    instance: baseline_gde_if.GDExtensionClassInstancePtr,
-    args: [*c]const baseline_gde_if.GDExtensionConstTypePtr,
-    ret: baseline_gde_if.GDExtensionTypePtr,
+    p_instance: baseline_gde_if.GDExtensionClassInstancePtr,
+    p_args: [*c]const baseline_gde_if.GDExtensionConstTypePtr,
+    p_ret: baseline_gde_if.GDExtensionTypePtr,
 ) callconv(.c) void {
-    _ = instance;
-    _ = args;
-    _ = ret;
+    _ = p_args;
+    _ = p_ret;
     if (isEditorHint()) return;
+    const self = classInstanceFromInstance(p_instance);
+
+    const prev_obj = api.g_godot_roc_current;
+    const prev_inst = g_godot_roc_current_instance;
+    api.g_godot_roc_current = self.object;
+    api.g_godot_roc_current_class_id = self.class_id;
+    g_godot_roc_current_instance = self;
+    defer {
+        api.g_godot_roc_current = prev_obj;
+        g_godot_roc_current_instance = prev_inst;
+        if (prev_inst) |p| {
+            api.g_godot_roc_current_class_id = p.class_id;
+        } else {
+            api.g_godot_roc_current_class_id = 0;
+        }
+    }
+    // Prefer:
+    // defer {
+    //     api.g_godot_roc_current = prev_obj;
+    //     g_godot_roc_current_instance = prev_inst;
+    //     if (prev_inst) |p| api.g_godot_roc_current_class_id = p.class_id else api.g_godot_roc_current_class_id = 0;
+    // }
+
     godot_roc_ready();
 }
 
 fn onPhysicsProcess(
-    instance: baseline_gde_if.GDExtensionClassInstancePtr,
-    args: [*c]const baseline_gde_if.GDExtensionConstTypePtr,
-    ret: baseline_gde_if.GDExtensionTypePtr,
+    p_instance: baseline_gde_if.GDExtensionClassInstancePtr,
+    p_args: [*c]const baseline_gde_if.GDExtensionConstTypePtr,
+    p_ret: baseline_gde_if.GDExtensionTypePtr,
 ) callconv(.c) void {
-    _ = ret;
+    _ = p_ret;
     if (isEditorHint()) return;
-    const delta: f64 = @as(*const f64, @ptrCast(@alignCast(args[0]))).*;
-    const self = classInstanceFromInstance(instance);
-    const prev = api.g_godot_roc_current;
-    api.g_godot_roc_current = self.object; // MUST be Object*, not `self`
-    defer api.g_godot_roc_current = prev;
+    const delta: f64 = @as(*const f64, @ptrCast(@alignCast(p_args[0]))).*;
+    const self = classInstanceFromInstance(p_instance);
+
+    const prev_obj = api.g_godot_roc_current;
+    const prev_inst = g_godot_roc_current_instance;
+    api.g_godot_roc_current = self.object;
+    api.g_godot_roc_current_class_id = self.class_id;
+    g_godot_roc_current_instance = self;
+    defer {
+        api.g_godot_roc_current = prev_obj;
+        g_godot_roc_current_instance = prev_inst;
+        if (prev_inst) |p| {
+            api.g_godot_roc_current_class_id = p.class_id;
+        } else {
+            api.g_godot_roc_current_class_id = 0;
+        }
+    }
+    // Prefer:
+    // defer {
+    //     api.g_godot_roc_current = prev_obj;
+    //     g_godot_roc_current_instance = prev_inst;
+    //     if (prev_inst) |p| api.g_godot_roc_current_class_id = p.class_id else api.g_godot_roc_current_class_id = 0;
+    // }
+
     godot_roc_physics_process(self.class_id, delta);
 }
 
 fn onProcess(
-    instance: baseline_gde_if.GDExtensionClassInstancePtr,
-    args: [*c]const baseline_gde_if.GDExtensionConstTypePtr,
-    ret: baseline_gde_if.GDExtensionTypePtr,
+    p_instance: baseline_gde_if.GDExtensionClassInstancePtr,
+    p_args: [*c]const baseline_gde_if.GDExtensionConstTypePtr,
+    p_ret: baseline_gde_if.GDExtensionTypePtr,
 ) callconv(.c) void {
-    _ = ret;
+    _ = p_ret;
     if (isEditorHint()) return;
-    const delta: f64 = @as(*const f64, @ptrCast(@alignCast(args[0]))).*;
-    const self = classInstanceFromInstance(instance);
-    const prev = api.g_godot_roc_current;
+    const delta: f64 = @as(*const f64, @ptrCast(@alignCast(p_args[0]))).*;
+    const self = classInstanceFromInstance(p_instance);
+
+    const prev_obj = api.g_godot_roc_current;
+    const prev_inst = g_godot_roc_current_instance;
     api.g_godot_roc_current = self.object;
-    defer api.g_godot_roc_current = prev;
+    api.g_godot_roc_current_class_id = self.class_id;
+    g_godot_roc_current_instance = self;
+    defer {
+        api.g_godot_roc_current = prev_obj;
+        g_godot_roc_current_instance = prev_inst;
+        if (prev_inst) |p| {
+            api.g_godot_roc_current_class_id = p.class_id;
+        } else {
+            api.g_godot_roc_current_class_id = 0;
+        }
+    }
+    // Prefer:
+    // defer {
+    //     api.g_godot_roc_current = prev_obj;
+    //     g_godot_roc_current_instance = prev_inst;
+    //     if (prev_inst) |p| api.g_godot_roc_current_class_id = p.class_id else api.g_godot_roc_current_class_id = 0;
+    // }
+
     godot_roc_process(self.class_id, delta);
 }
 

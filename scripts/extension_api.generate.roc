@@ -516,6 +516,27 @@ main! = |args| {
     \\    print_warning! : Str => {}
     \\    print_warning! = |str|
     \\        Host.print_warning!(str)
+    \\
+    \\    instance_id! : () => U64
+    \\    instance_id! = Host.instance_id!
+    \\
+    \\    instance_class_id! : () => U32
+    \\    instance_class_id! = Host.instance_class_id!
+    \\
+    \\    user_slot_count! : () => U64
+    \\    user_slot_count! = Host.user_slot_count!
+    \\
+    \\    user_slot_get! : U64 => U64
+    \\    user_slot_get! = Host.user_slot_get!
+    \\
+    \\    user_slot_set! : U64, U64 => {}
+    \\    user_slot_set! = Host.user_slot_set!
+    \\
+    \\    user_slot_get_f32! : U64 => F32
+    \\    user_slot_get_f32! = Host.user_slot_get_f32!
+    \\
+    \\    user_slot_set_f32! : U64, F32 => {}
+    \\    user_slot_set_f32! = Host.user_slot_set_f32!
     \\}
     \\
     \\
@@ -679,6 +700,13 @@ host_facade_symbols = [
     "register_class",
     "print_error",
     "print_warning",
+    "instance_id",
+    "instance_class_id",
+    "user_slot_count",
+    "user_slot_get",
+    "user_slot_set",
+    "user_slot_get_f32",
+    "user_slot_set_f32",
 ]
 
 host_facade_decls : Str
@@ -690,6 +718,13 @@ host_facade_decls =
     \\    register_class! : Str, Str => U32
     \\    print_error! : Str => {}
     \\    print_warning! : Str => {}
+    \\    instance_id! : () => U64
+    \\    instance_class_id! : () => U32
+    \\    user_slot_count! : () => U64
+    \\    user_slot_get! : U64 => U64
+    \\    user_slot_set! : U64, U64 => {}
+    \\    user_slot_get_f32! : U64 => F32
+    \\    user_slot_set_f32! : U64, F32 => {}
 
 # =============================================================================
 # Naming
