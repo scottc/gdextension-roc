@@ -68,10 +68,13 @@ config = [
 		Run([
 		    "scripts/publish.roc", "--",
 			"--publish",
-			"--baseline=godot4.5",
-			"--engines=godot4.7,redot26.2,blazium0.6",
-			"--targets=x64musl,wasm32",
-			"-Doptimize=ReleaseFast",
+			#specified by GHA runner...
+			#nix run github:lukewilliamboswell/roc-blueprint/0.5.0 -- run publish -- \
+            #--baseline="${BASELINE}" \
+            #--engines="${ENGINES}" \
+            #--targets="${TARGETS}" \
+            #-Doptimize="${OPT}" \
+            #${TAG_ARG}
 		]),
 	]),
 ]
