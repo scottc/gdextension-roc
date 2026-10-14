@@ -69,6 +69,41 @@ StringHelper := {}.{
         $acc
     }
 
+    ## Split "a,b,c" on ',' (trim pieces; drop empties).
+    split_comma : Str -> List(Str)
+    split_comma = |s| {
+        bytes = s.to_utf8()
+        $acc : List(Str)
+        var $acc = []
+        $cur : List(U8)
+        var $cur = []
+        for b in bytes {
+            if b == 44.U8 {
+                # ','
+                part =
+                    match Str.from_utf8($cur) {
+                        Ok(p) => p.trim()
+                        Err(_) => ""
+                    }
+                if !part.is_empty() {
+                    $acc = $acc.append(part)
+                }
+                $cur = []
+            } else {
+                $cur = $cur.append(b)
+            }
+        }
+        last =
+            match Str.from_utf8($cur) {
+                Ok(p) => p.trim()
+                Err(_) => ""
+            }
+        if !last.is_empty() {
+            $acc = $acc.append(last)
+        }
+        $acc
+    }
+
     split_first_char : Str, U8 -> Try({ before : Str, after : Str }, {})
     split_first_char = |s, ch| {
         bytes = s.to_utf8()

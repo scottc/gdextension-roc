@@ -22,6 +22,11 @@ import pf.Utc
 import pf.OsStr
 import pf.Cmd
 
+import effects/PathHelper
+
+import modules/Args
+import modules/Engine
+import modules/StringHelper
 import modules/ModMap
 import modules/CpuArchOS
 import modules/ExtensionApiRenderer
@@ -37,159 +42,34 @@ import modules/ExtensionApi exposing [
     PropertyDef,
 ]
 
-
-
-## Split "a,b,c" on ',' (trim pieces; drop empties).
-split_comma : Str -> List(Str)
-split_comma = |s| {
-    bytes = s.to_utf8()
-    $acc : List(Str)
-    var $acc = []
-    $cur : List(U8)
-    var $cur = []
-    for b in bytes {
-        if b == 44.U8 {
-            # ','
-            part =
-                match Str.from_utf8($cur) {
-                    Ok(p) => p.trim()
-                    Err(_) => ""
-                }
-            if !part.is_empty() {
-                $acc = $acc.append(part)
-            }
-            $cur = []
-        } else {
-            $cur = $cur.append(b)
-        }
-    }
-    last =
-        match Str.from_utf8($cur) {
-            Ok(p) => p.trim()
-            Err(_) => ""
-        }
-    if !last.is_empty() {
-        $acc = $acc.append(last)
-    }
-    $acc
-}
-
-parse_targets : List(OsStr) -> List(CpuArchOS)
-parse_targets = |args| {
-    for a in args {
-        str = a.display()
-        if str.starts_with("--targets=") {
-            id = str.replace_first("--targets=", "")
-            match id {
-                "all" => return CpuArchOS.all
-                "auto" => return CpuArchOS.auto
-                raw => {
-                    parts = split_comma(raw)
-                    if parts.is_empty() {
-                        return CpuArchOS.auto
-                    } else {
-                        crash "parse_targets implementation is incomplete, Fix me."
-                        #return parts
-                    }
-                }
-            }
-        }
-    }
-    CpuArchOS.auto
-}
-
-
-Engine : [Godot, Godot4_5_1, Redot, Rex]
-
-## Accept CI cli ids (godot4.5) and path slugs (godot4_5).
-parse_engine : List(OsStr) -> Engine
-parse_engine = |args| {
-    for a in args {
-        str = a.display()
-        if str.starts_with("--engine=") {
-            id = str.replace_first("--engine=", "")
-            match id {
-                "godot" => return Godot
-                "godot4.5" => return Godot4_5_1
-                "godot4.5.1" => return Godot4_5_1
-                "godot4_5" => return Godot4_5_1
-                "redot" => return Redot
-                "rex" => return Rex
-                _ => crash "invalid --engine= flag, must be: godot, godot4.5, godot4_5, redot or rex."
-            }
-        }
-    }
-
-    Godot
-}
-
-## Directory / path slug (not necessarily the CLI id).
-engine_str : Engine -> Str
-engine_str = |engine| {
-    match engine {
-        Godot => "godot"
-        Godot4_5_1 => "godot4_5"
-        Redot => "redot"
-        Rex => "rex"
-    }
-}
-
-# mkdir -p; args must be List(OsStr) on basic-cli 0.23
-ensure_dir! : Path => Try({}, _)
-ensure_dir! = |dir| {
-    flag : OsStr
-    flag = "-p"
-    # Path → Str → OsStr (display/inspect depending on your Path API)
-    dir_arg : OsStr
-    dir_arg = dir.to_os_str() # Path stringifies in interpolation; annotate as OsStr
-    {} = Cmd.exec!("mkdir", [flag, dir_arg])?
-    Ok({})
-}
-
-ensure_platform_dirs! : Path => Try({}, _)
-ensure_platform_dirs! = |roc_out| {
-    ensure_dir!(roc_out)?
-    ensure_dir!(Path.join(roc_out, "engine"))?
-    ensure_dir!(Path.join(roc_out, "engine/math"))?
-    ensure_dir!(Path.join(roc_out, "engine/builtin_classes"))?
-    ensure_dir!(Path.join(roc_out, "engine/classes"))?
-    ensure_dir!(Path.join(roc_out, "engine/singletons"))?
-    Ok({})
-}
-
 main! : List(OsStr) => Try({}, _)
 main! = |args| {
 
-    user_args = args
-    #     if List.is_empty(args) {
-    #         []
-    #     } else {
-    #         List.drop_first(args, 1)
-    #     }
+    str_args = args.map(|a| a.display())
 
     engine : Engine
-    engine = parse_engine(user_args)
-    eng = engine_str(engine)
-    Stdout.line!("# Engine: ${eng}")?
+    engine = Args.parse_engine_flag(str_args)?
+    Stdout.line!("# Engine: ${Str.inspect(engine)}")?
 
     selected_targets : List(CpuArchOS)
-    selected_targets = parse_targets(user_args)
+    selected_targets = CpuArchOS.parse_targets_flag(str_args)
+
     Stdout.line!("# Targets: ${Str.join_with(selected_targets.map(CpuArchOS.to_name), ",")}")?
 
     source : Path
-    source = "dump-out/${eng}/extension_api.json"
+    source = "dump-out/${engine.to_path_slug()}/extension_api.json"
 
     roc_out_path : Path
-    roc_out_path = "platform-out/${eng}"
+    roc_out_path = "platform-out/${engine.to_path_slug()}"
 
     glue_out_dir : Path
-    glue_out_dir = "host/glue-out/${eng}"
+    glue_out_dir = "host/glue-out/${engine.to_path_slug()}"
 
     Stdout.line!("# extension_api.generate.roc")?
 
     # Create output trees (idempotent; safe if CI already mkdir'd the roots)
-    ensure_platform_dirs!(roc_out_path)?
-    ensure_dir!(glue_out_dir)?
+    PathHelper.ensure_platform_dirs!(roc_out_path)?
+    PathHelper.ensure_dir!(glue_out_dir)?
 
     read_start = Utc.now!()
     json_contents = source.read_utf8!()?

@@ -23,58 +23,15 @@ import pf.Utc
 import pf.OsStr
 import pf.Cmd
 
+import effects/PathHelper
+
+import modules/Args
+import modules/Engine
 import modules/StringHelper
 import modules/GDExtensionInterfaceScanner
 import modules/GDExtensionInterfaceParser
-import modules/GDExtensionInterface exposing [CommentInfo, TypeDefInfo]
+import modules/GDExtensionInterface exposing [CommentInfo, TypeDefInfo, GDExtensionInterfaceItem]
 import modules/GDExtensionInterfaceRenderer
-
-Item : { comment: CommentInfo, typedef: TypeDefInfo }
-
-Engine : [Godot, Godot4_5_1, Redot, Rex]
-
-## Accept CI cli ids (godot4.5) and path slugs (godot4_5).
-parse_engine : List(OsStr) -> Engine
-parse_engine = |args| {
-    for a in args {
-        str = a.display()
-        if str.starts_with("--engine=") {
-            id = str.replace_first("--engine=", "")
-            match id {
-                "godot" => return Godot
-                "godot4.5" => return Godot4_5_1
-                "godot4.5.1" => return Godot4_5_1
-                "godot4_5" => return Godot4_5_1
-                "redot" => return Redot
-                "rex" => return Rex
-                _ => crash "invalid --engine= flag, must be: godot, godot4.5, godot4_5, redot or rex."
-            }
-        }
-    }
-
-    Godot
-}
-
-## Directory / path slug (not necessarily the CLI id).
-engine_str : Engine -> Str
-engine_str = |engine| {
-    match engine {
-        Godot => "godot"
-        Godot4_5_1 => "godot4_5"
-        Redot => "redot"
-        Rex => "rex"
-    }
-}
-
-ensure_dir! : Path => Try({}, _)
-ensure_dir! = |dir| {
-    flag : OsStr
-    flag = "-p"
-    dir_arg : OsStr
-    dir_arg = dir.to_os_str()
-    {} = Cmd.exec!("mkdir", [flag, dir_arg])?
-    Ok({})
-}
 
 # ---------------------------------------------------------------------------
 # Entry
@@ -82,20 +39,18 @@ ensure_dir! = |dir| {
 
 main! : List(OsStr) => Try({}, _)
 main! = |args| {
-    user_args = args
-
+    str_args = args.map(|a| a.display())
     engine : Engine
-    engine = parse_engine(user_args)
-    eng = engine_str(engine)
+    engine = Args.parse_engine_flag(str_args)?
 
-    Stdout.line!("# Engine: ${eng}")?
+    Stdout.line!("# Engine: ${engine.to_name()}")?
 
     source : Path
-    source = "dump-out/${eng}/gdextension_interface.h"
+    source = "dump-out/${engine.to_path_slug()}/gdextension_interface.h"
 
     glue_dir : Path
-    glue_dir = "host/glue-out/${eng}"
-    ensure_dir!(glue_dir)?
+    glue_dir = "host/glue-out/${engine.to_path_slug()}"
+    PathHelper.ensure_dir!(glue_dir)?
 
     out_path : Path
     out_path = Path.join(glue_dir, "gdextension_interface.zig")
@@ -107,7 +62,7 @@ main! = |args| {
     bytes = c_contents.to_utf8()
     parse_start = Utc.now!()
 
-    $items : List(Item)
+    $items : List(GDExtensionInterfaceItem)
     var $items = []
     var $cursor = 0.U64
     var $n = 0.U64
