@@ -979,6 +979,19 @@ is_string_godot_type = |t| {
     t == "String" or t == "StringName" or t == "NodePath"
 }
 
+## Zig body fragment: log stub, then default return.
+zig_stub_body : Str, Str -> Str
+zig_stub_body = |message, zig_ty| {
+    ret_line = zig_default_ret(zig_ty)
+    # ret_line is "" for void, or "return 0;" / "return std.mem.zeroes(...);" etc.
+    if ret_line == "" {
+        \\    gde_call.godotRocCtx().iface.print_error("[godot-roc STUB] ${message}", "this_stub", @src().file, @src().line, 0);
+    } else {
+        \\    gde_call.godotRocCtx().iface.print_error("[godot-roc STUB] ${message}", "this_stub", @src().file, @src().line, 0);
+        \\    ${ret_line}
+    }
+}
+
 zig_default_ret : Str -> Str
 zig_default_ret = |zig_ty| {
     match zig_ty {
@@ -2154,11 +2167,12 @@ zig_export_method = |eapi, owner, md| {
 
     if !(method_is_simple_ptrcall(md)) {
         params = zig_method_params_for(owner, md)
-        default_ret = zig_default_ret(ret)
+        msg = "${owner}.${md.name} hash=${md.hash.to_str()} (non-simple / not wired)"
+        body = zig_stub_body(msg, ret)
         \\
         \\/// ${owner}.${md.name} hash=${md.hash.to_str()} (stub — non-simple)
         \\export fn godot_roc_${sym}(${params}) callconv(.c) ${ret} {
-        \\    ${default_ret}
+        \\${body}
         \\}
     } else if is_builtin {
         params = zig_method_params_named_for(owner, md)
@@ -2286,11 +2300,12 @@ zig_export_util = |uf| {
                     ", ",
                 )
             }
-        default_ret = zig_default_ret(ret)
+        msg = "utility ${uf.name} hash=${uf.hash.to_str()} (non-simple / vararg / not wired)"
+        body = zig_stub_body(msg, ret)
         \\
         \\/// utility ${uf.name} (stub — non-simple / vararg)
         \\export fn godot_roc_${sym}(${params}) callconv(.c) ${ret} {
-        \\    ${default_ret}
+        \\${body}
         \\}
     } else {
         params =
