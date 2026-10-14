@@ -63,17 +63,13 @@ config = [
 			]),
 		],
 	),
-	Task("check-blaz", [
-        Use("gh-publish-env"),
-        Run(["blazium", "--headless", "--dump-gdextension-interface", "--dump-extension-api"]),
-	]),
 	Task("publish", [
 	    Use("gh-publish-env"),
 		Run([
 		    "scripts/publish.roc", "--",
 			"--publish",
 			"--baseline=godot4.5",
-			"--engines=godot-stable,redot-stable,blazium-stable",
+			"--engines=godot4.7,redot26.2,blazium0.6",
 			"--targets=x64musl,wasm32",
 			"-Doptimize=ReleaseFast",
 		]),
