@@ -1,6 +1,6 @@
 # [![Godot-Roc](brand/logo-stroke.plain.svg)](https://github.com/scottc/godot-roc)
 
-GDExtension Roc language bindings generator for Godot Game Engine, Redot Game Engine & Draconic Game Engine.
+GDExtension Roc language bindings generator for Godot Game Engine, Redot Game Engine, Blazium Game Engine & Draconic Game Engine.
 
 > [!NOTE]   
 > For **game development** with godot-roc see our [Getting Started Example](https://github.com/scottc/survivepg).
@@ -9,7 +9,7 @@ GDExtension Roc language bindings generator for Godot Game Engine, Redot Game En
 
 ## About
 
-Godot-Roc lets you write game logic in [Roc](https://roc-lang.org/), "A [fast](https://roc-lang.org/fast), [friendly](https://roc-lang.org/friendly), [functional](https://roc-lang.org/functional) language". While [Godot Engine](https://godotengine.org/), [Redot Engine](https://www.redotengine.org/) or [Draconic Engine](https://github.com/Redot-Engine/DraconicEngine) handles scenes, rendering, and tooling.
+Godot-Roc lets you write game logic in [Roc](https://roc-lang.org/), "A [fast](https://roc-lang.org/fast), [friendly](https://roc-lang.org/friendly), [functional](https://roc-lang.org/functional) language". While [Godot Engine](https://godotengine.org/), [Redot Engine](https://www.redotengine.org/), [Blazium Engine](https://blazium.app/) or [Draconic Engine](https://github.com/Redot-Engine/DraconicEngine) handles scenes, rendering, and tooling.
 
 game engine/s <-> zig host runtime <-> roc platform APIs <-> game development experience
 

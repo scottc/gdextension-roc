@@ -40,15 +40,23 @@
 						(name "kind")
 						(value (Str "overlay"))) (
 						(name "flake")
+						(value (Bool true))))))) (
+					(name "blazium")
+					(value (Attrs ((
+						(name "ref")
+						(value (Str "path:flakes/blazium-nix"))) (
+						(name "kind")
+						(value (Str "overlay"))) (
+						(name "flake")
 						(value (Bool true))))))))))) (
 				(name "overlays")
 				(value (Attrs ((
 					(name "dev-env")
 					(value (List ((Str "roc"))))) (
 					(name "ci-env")
-					(value (List ((Str "roc") (Str "redot"))))) (
+					(value (List ((Str "roc"))))) (
 					(name "gh-publish-env")
-					(value (List ((Str "roc") (Str "redot"))))))))))))) (
+					(value (List ((Str "roc") (Str "redot") (Str "blazium"))))))))))))) (
 			(name "graph")
 			(value (Attrs ((
 				(name "root")
@@ -57,6 +65,30 @@
 				(value (Int 7))) (
 				(name "nodes")
 				(value (Attrs ((
+					(name "blazium")
+					(value (Attrs ((
+						(name "inputs")
+						(value (Attrs ((
+							(name "flake-utils")
+							(value (Str "flake-utils"))) (
+							(name "nixpkgs")
+							(value (Str "nixpkgs"))))))) (
+						(name "original")
+						(value (Attrs ((
+							(name "type")
+							(value (Str "path"))) (
+							(name "path")
+							(value (Str "flakes/blazium-nix"))))))) (
+						(name "locked")
+						(value (Attrs ((
+							(name "lastModified")
+							(value (Int 1791993542))) (
+							(name "narHash")
+							(value (Str "sha256-05PzMH2DfDUgAugQ7uHmYQEN5anlqKz6Q1Sasy9jllU="))) (
+							(name "type")
+							(value (Str "path"))) (
+							(name "path")
+							(value (Str "flakes/blazium-nix"))))))))))) (
 					(name "default")
 					(value (Attrs ((
 						(name "locked")
@@ -92,15 +124,15 @@
 						(name "locked")
 						(value (Attrs ((
 							(name "lastModified")
-							(value (Int 1731533236))) (
+							(value (Int 1791914995))) (
 							(name "narHash")
-							(value (Str "sha256-l0KFg5HjrsfsO/JpG+r7fRrqm12kzFHyUHqHCVpMMbI="))) (
+							(value (Str "sha256-Zf/xfQEAasnwnmEfHqW/4hjDE/s44yn2hD4RuVIZRjA="))) (
 							(name "owner")
 							(value (Str "numtide"))) (
 							(name "repo")
 							(value (Str "flake-utils"))) (
 							(name "rev")
-							(value (Str "11707dc2f618dd54ca8739b309ec4fc024de578b"))) (
+							(value (Str "b7a79d3fea1e214f6d668d521cecec0c01e26544"))) (
 							(name "type")
 							(value (Str "github"))))))) (
 						(name "original")
@@ -139,20 +171,48 @@
 							(value (Str "flake-utils"))) (
 							(name "type")
 							(value (Str "github"))))))))))) (
+					(name "flake-utils_3")
+					(value (Attrs ((
+						(name "inputs")
+						(value (Attrs ((
+							(name "systems")
+							(value (Str "systems_3"))))))) (
+						(name "locked")
+						(value (Attrs ((
+							(name "lastModified")
+							(value (Int 1731533236))) (
+							(name "narHash")
+							(value (Str "sha256-l0KFg5HjrsfsO/JpG+r7fRrqm12kzFHyUHqHCVpMMbI="))) (
+							(name "owner")
+							(value (Str "numtide"))) (
+							(name "repo")
+							(value (Str "flake-utils"))) (
+							(name "rev")
+							(value (Str "11707dc2f618dd54ca8739b309ec4fc024de578b"))) (
+							(name "type")
+							(value (Str "github"))))))) (
+						(name "original")
+						(value (Attrs ((
+							(name "owner")
+							(value (Str "numtide"))) (
+							(name "repo")
+							(value (Str "flake-utils"))) (
+							(name "type")
+							(value (Str "github"))))))))))) (
 					(name "nixpkgs")
 					(value (Attrs ((
 						(name "locked")
 						(value (Attrs ((
 							(name "lastModified")
-							(value (Int 1791594108))) (
+							(value (Int 1791734076))) (
 							(name "narHash")
-							(value (Str "sha256-XK4KceonkwD8LuMAt/vNrz982mXJM5jeHAxMwsUXXAQ="))) (
+							(value (Str "sha256-i5qk1kLiit98rRbh1AXmWBNT9QXC/y4l5Wk/u5EdpDQ="))) (
 							(name "owner")
 							(value (Str "NixOS"))) (
 							(name "repo")
 							(value (Str "nixpkgs"))) (
 							(name "rev")
-							(value (Str "6510408d147d8c5e6d76043e899e9251756f6a75"))) (
+							(value (Str "7fd4004d0511991fff3a0524856a9be09e28c5f0"))) (
 							(name "type")
 							(value (Str "github"))))))) (
 						(name "original")
@@ -222,6 +282,32 @@
 						(name "locked")
 						(value (Attrs ((
 							(name "lastModified")
+							(value (Int 1791594108))) (
+							(name "narHash")
+							(value (Str "sha256-XK4KceonkwD8LuMAt/vNrz982mXJM5jeHAxMwsUXXAQ="))) (
+							(name "owner")
+							(value (Str "NixOS"))) (
+							(name "repo")
+							(value (Str "nixpkgs"))) (
+							(name "rev")
+							(value (Str "6510408d147d8c5e6d76043e899e9251756f6a75"))) (
+							(name "type")
+							(value (Str "github"))))))) (
+						(name "original")
+						(value (Attrs ((
+							(name "owner")
+							(value (Str "NixOS"))) (
+							(name "ref")
+							(value (Str "nixos-unstable"))) (
+							(name "repo")
+							(value (Str "nixpkgs"))) (
+							(name "type")
+							(value (Str "github"))))))))))) (
+					(name "nixpkgs_4")
+					(value (Attrs ((
+						(name "locked")
+						(value (Attrs ((
+							(name "lastModified")
 							(value (Int 1791048980))) (
 							(name "narHash")
 							(value (Str "sha256-KgItSKML8Xvte0B7/uGnBDsYzSnnKHcOaiUbgWBXLXw="))) (
@@ -248,9 +334,9 @@
 						(name "inputs")
 						(value (Attrs ((
 							(name "flake-utils")
-							(value (Str "flake-utils"))) (
+							(value (Str "flake-utils_2"))) (
 							(name "nixpkgs")
-							(value (Str "nixpkgs"))))))) (
+							(value (Str "nixpkgs_2"))))))) (
 						(name "original")
 						(value (Attrs ((
 							(name "type")
@@ -272,9 +358,9 @@
 						(name "inputs")
 						(value (Attrs ((
 							(name "flake-utils")
-							(value (Str "flake-utils_2"))) (
+							(value (Str "flake-utils_3"))) (
 							(name "nixpkgs")
-							(value (Str "nixpkgs_2"))))))) (
+							(value (Str "nixpkgs_3"))))))) (
 						(name "original")
 						(value (Attrs ((
 							(name "type")
@@ -296,21 +382,21 @@
 						(name "inputs")
 						(value (Attrs ((
 							(name "nixpkgs")
-							(value (Str "nixpkgs_3"))) (
+							(value (Str "nixpkgs_4"))) (
 							(name "nixpkgs-darwin")
 							(value (Str "nixpkgs-darwin"))))))) (
 						(name "locked")
 						(value (Attrs ((
 							(name "lastModified")
-							(value (Int 1791901464))) (
+							(value (Int 1791980294))) (
 							(name "narHash")
-							(value (Str "sha256-RgaALRS8wxmKnUYJbTj40+aHgJHM6TaPG4ayRTnexyw="))) (
+							(value (Str "sha256-WorOv8SkoIf2C0HXPSvvQCsEygSR+9dDcPM0v0mwb3k="))) (
 							(name "owner")
 							(value (Str "roc-lang"))) (
 							(name "repo")
 							(value (Str "roc-overlay"))) (
 							(name "rev")
-							(value (Str "68d7797d57638b54c0f1e9684b17f6dd8eea4225"))) (
+							(value (Str "2883daa3ca02b87a10e194375ae01e2ef5e22d8d"))) (
 							(name "type")
 							(value (Str "github"))))))) (
 						(name "original")
@@ -325,6 +411,8 @@
 					(value (Attrs ((
 						(name "inputs")
 						(value (Attrs ((
+							(name "blazium")
+							(value (Str "blazium"))) (
 							(name "default")
 							(value (Str "default"))) (
 							(name "nixpkgs")
@@ -382,10 +470,37 @@
 							(name "repo")
 							(value (Str "default"))) (
 							(name "type")
+							(value (Str "github"))))))))))) (
+					(name "systems_3")
+					(value (Attrs ((
+						(name "locked")
+						(value (Attrs ((
+							(name "lastModified")
+							(value (Int 1681028828))) (
+							(name "narHash")
+							(value (Str "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768="))) (
+							(name "owner")
+							(value (Str "nix-systems"))) (
+							(name "repo")
+							(value (Str "default"))) (
+							(name "rev")
+							(value (Str "da67096a3b9bf56a91d16901293e51ba5b49a27e"))) (
+							(name "type")
+							(value (Str "github"))))))) (
+						(name "original")
+						(value (Attrs ((
+							(name "owner")
+							(value (Str "nix-systems"))) (
+							(name "repo")
+							(value (Str "default"))) (
+							(name "type")
 							(value (Str "github")))))))))))))))))))))))))
 	(intent (
 		(build_sources ())
 		(inputs ((
+			(kind Overlay)
+			(name "blazium")
+			(url "path:./flakes/blazium-nix")) (
 			(kind Overlay)
 			(name "redot")
 			(url "path:./flakes/redot-nix")) (
@@ -397,11 +512,11 @@
 			(url "github:roc-lang/roc-overlay"))))
 		(overlays ((
 			(environment "ci-env")
-			(overlays ("roc" "redot"))) (
+			(overlays ("roc"))) (
 			(environment "dev-env")
 			(overlays ("roc"))) (
 			(environment "gh-publish-env")
-			(overlays ("roc" "redot")))))
+			(overlays ("roc" "redot" "blazium")))))
 		(sources ((
 			(name "default")
 			(provider Auto))))))
@@ -411,11 +526,11 @@
 		(provider "nix")
 		(ref "github:NixOS/nixpkgs/nixos-unstable")
 		(rev "7fd4004d0511991fff3a0524856a9be09e28c5f0")) (
-		(digest "sha256:4606802d14bcc3198a9d46096d38f8d3e6878091cce9368f1b86b24539dec72c")
+		(digest "sha256:5a8acebfc4a4a087f60b41d73d2bef402b04ca0491fbd74370f334bf49b06f79")
 		(name "roc")
 		(provider "nix")
 		(ref "github:roc-lang/roc-overlay")
-		(rev "68d7797d57638b54c0f1e9684b17f6dd8eea4225")) (
+		(rev "2883daa3ca02b87a10e194375ae01e2ef5e22d8d")) (
 		(digest "sha256:d77f92568655a439fe584109ef18fae6eafc2884087956e001765820ce0d8483")
 		(name "redot")
 		(provider "nix")
@@ -425,4 +540,9 @@
 		(name "rex")
 		(provider "nix")
 		(ref "path:flakes/rex-nix")
+		(rev "")) (
+		(digest "sha256:d0ffcd95f676c88dd1d9ea84f7ec1b828858c384d454dface5f522f30dce993b")
+		(name "blazium")
+		(provider "nix")
+		(ref "path:flakes/blazium-nix")
 		(rev "")))))

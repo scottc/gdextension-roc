@@ -14,6 +14,7 @@ config = [
 	Overlay("roc", "github:roc-lang/roc-overlay"),
 	Overlay("redot", "path:./flakes/redot-nix"),
 	Overlay("rex", "path:./flakes/rex-nix"),
+	Overlay("blazium", "path:./flakes/blazium-nix"),
 	Shell("default", [Use("dev-env")]),
 	Environment("dev-env", [
     	Overlays(["roc"]),
@@ -26,7 +27,7 @@ config = [
 	Environment(
 		"ci-env",
 		[
-			Overlays(["roc", "redot"]),
+			Overlays(["roc"]),
 			Command("roc", "rocpkgs.nightly-2026-10-01-a932c65"),
 			Tools([
 				"zig",
@@ -48,28 +49,33 @@ config = [
 	Environment(
 		"gh-publish-env",
 		[
-			Overlays(["roc", "redot"]),
+			Overlays(["roc", "redot", "blazium"]),
 			Command("roc", "rocpkgs.nightly-2026-10-01-a932c65"),
 			Tools([
 			    "gh",
     			"zig",
           		"godotPackages_4_5.godot", # sane baseline
                 "godot", # latest godot
-          		"redot", # latest redot
+                "redot", # latest redot
+          		"blazium", # latest blazium
                 #"godotPackages_4_3.godot", # oldest godot for max compatibility...
           		#"rex", # When api dumps are working...
 			]),
 		],
 	),
+	Task("check-blaz", [
+        Use("gh-publish-env"),
+        Run(["blazium", "--headless", "--dump-gdextension-interface", "--dump-extension-api"]),
+	]),
 	Task("publish", [
 	    Use("gh-publish-env"),
 		Run([
 		    "scripts/publish.roc", "--",
 			"--publish",
 			"--baseline=godot4.5",
-			"--engines=godot-stable,redot-stable",
+			"--engines=godot-stable,redot-stable,blazium-stable",
 			"--targets=x64musl,wasm32",
-			"-Doptimize=ReleaseFast"
-		])
+			"-Doptimize=ReleaseFast",
+		]),
 	]),
 ]
