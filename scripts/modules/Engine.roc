@@ -4,6 +4,7 @@ Engine := [
     Godot(Version),
     Redot(Version),
     Rex(Version),
+    Blazium(Version),
 ].{
 
     to_path_slug : Engine -> Str
@@ -12,6 +13,7 @@ Engine := [
             Godot(v) => "godot${v.major.to_str()}_${v.minor.to_str()}"
             Redot(v) => "redot${v.major.to_str()}_${v.minor.to_str()}"
             Rex(v) => "rex${v.major.to_str()}_${v.minor.to_str()}"
+            Blazium(v) => "blazium${v.major.to_str()}_${v.minor.to_str()}"
         }
     }
 
@@ -21,6 +23,7 @@ Engine := [
             Godot(v) => "godot${v.major.to_str()}.${v.minor.to_str()}"
             Redot(v) => "redot${v.major.to_str()}.${v.minor.to_str()}"
             Rex(v) => "rex${v.major.to_str()}.${v.minor.to_str()}"
+            Blazium(v) => "blazium${v.major.to_str()}.${v.minor.to_str()}"
         }
     }
 
@@ -36,6 +39,8 @@ Engine := [
         } else if str.starts_with("rex") {
             _ver_str = str.replace_first("rex", "")
             Rex({ major: 0, minor: 0 })
+        } else if str.starts_with("blazium") {
+            Blazium({ major: 0, minor: 0 })
         } else {
             crash \\EngineParseError("name engine name; must match one of the following formats: godot4.5 | redot26.2 | rex0.0. But got ${str}")
         }
