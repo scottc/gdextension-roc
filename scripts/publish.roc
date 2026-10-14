@@ -29,57 +29,15 @@ app [main!] {
 import pf.Build
 import pf.Log
 
+import modules/Host exposing [Optimize, LibKind]
+import modules/CpuArchOS
+import modules/Engine
+import modules/Args exposing [PublishOpts]
+import modules/Host exposing [HostTarget]
+
 # =============================================================================
 # Types
 # =============================================================================
-
-Optimize : [Debug, ReleaseFast, ReleaseSafe, ReleaseSmall]
-
-LibKind : [StaticLib, WasmObj]
-
-HostName : [
-    Wasm32,
-    X64Musl,
-    X64V1Musl,
-    Arm64Musl,
-    Arm64V1Musl,
-    X64Mac,
-    Arm64Mac,
-    X64Win,
-    X64Mingw,
-    Arm64Win,
-    Arm64Mingw,
-]
-
-HostTarget : {
-    name : HostName,
-    name_str : Str,
-    zig_triple : Str,
-    kind : LibKind,
-    lib_file : Str,
-    mcpu : [NoCpu, Cpu(Str)],
-}
-
-EngineName : [Godot, Godot451, Redot]
-
-EngineSpec : {
-    name : EngineName,
-    slug : Str,
-    cli_id : Str,
-    program : Str,
-}
-
-PublishOpts : {
-    tag : [AutoTag, Tag(Str)],
-}
-
-PubConfig : {
-    baseline : EngineSpec,
-    engines : List(EngineSpec),
-    hosts : List(HostTarget),
-    optimize : Optimize,
-    publish : PublishOpts,
-}
 
 NodeId : U64
 
@@ -91,123 +49,6 @@ PhaseResult : {
 
 ReplacePair : { find : Str, replace : Str }
 
-# =============================================================================
-# Matrices
-# =============================================================================
-
-host_targets : List(HostTarget)
-host_targets = [
-    {
-        name: Wasm32,
-        name_str: "wasm32",
-        zig_triple: "wasm32-freestanding",
-        kind: WasmObj,
-        lib_file: "libhost.o.wasm",
-        mcpu: NoCpu,
-    },
-    {
-        name: X64Musl,
-        name_str: "x64musl",
-        zig_triple: "x86_64-linux-musl",
-        kind: StaticLib,
-        lib_file: "libhost.a",
-        mcpu: NoCpu,
-    },
-    {
-        name: X64V1Musl,
-        name_str: "x64v1musl",
-        zig_triple: "x86_64-linux-musl",
-        kind: StaticLib,
-        lib_file: "libhost.a",
-        mcpu: Cpu("x86_64"),
-    },
-    {
-        name: Arm64Musl,
-        name_str: "arm64musl",
-        zig_triple: "aarch64-linux-musl",
-        kind: StaticLib,
-        lib_file: "libhost.a",
-        mcpu: NoCpu,
-    },
-    {
-        name: Arm64V1Musl,
-        name_str: "arm64v1musl",
-        zig_triple: "aarch64-linux-musl",
-        kind: StaticLib,
-        lib_file: "libhost.a",
-        mcpu: Cpu("baseline"),
-    },
-    {
-        name: X64Mac,
-        name_str: "x64mac",
-        zig_triple: "x86_64-macos",
-        kind: StaticLib,
-        lib_file: "libhost.a",
-        mcpu: NoCpu,
-    },
-    {
-        name: Arm64Mac,
-        name_str: "arm64mac",
-        zig_triple: "aarch64-macos",
-        kind: StaticLib,
-        lib_file: "libhost.a",
-        mcpu: NoCpu,
-    },
-    {
-        name: X64Win,
-        name_str: "x64win",
-        zig_triple: "x86_64-windows",
-        kind: StaticLib,
-        lib_file: "host.lib",
-        mcpu: NoCpu,
-    },
-    {
-        name: X64Mingw,
-        name_str: "x64mingw",
-        zig_triple: "x86_64-windows-gnu",
-        kind: StaticLib,
-        lib_file: "host.lib",
-        mcpu: NoCpu,
-    },
-    {
-        name: Arm64Win,
-        name_str: "arm64win",
-        zig_triple: "aarch64-windows",
-        kind: StaticLib,
-        lib_file: "host.lib",
-        mcpu: NoCpu,
-    },
-    {
-        name: Arm64Mingw,
-        name_str: "arm64mingw",
-        zig_triple: "aarch64-windows-gnu",
-        kind: StaticLib,
-        lib_file: "host.lib",
-        mcpu: NoCpu,
-    },
-]
-
-engine_specs : List(EngineSpec)
-engine_specs = [
-    {
-        name: Godot,
-        slug: "godot",
-        cli_id: "godot",
-        program: "godot",
-    },
-    {
-        name: Godot451,
-        slug: "godot4_5",
-        cli_id: "godot4.5",
-        program: "godot4.5",
-    },
-    {
-        name: Redot,
-        slug: "redot",
-        cli_id: "redot",
-        program: "redot",
-    },
-]
 
 glue_spec : Str
 glue_spec = "vendor/roc/nightly-2026-10-12-2664a27/ZigGlue.roc"
@@ -216,222 +57,23 @@ glue_spec = "vendor/roc/nightly-2026-10-12-2664a27/ZigGlue.roc"
 # CLI
 # =============================================================================
 
-flag_value : List(Str), Str -> [None, Some(Str)]
-flag_value = |args, prefix| {
-    for a in args {
-        if a.starts_with(prefix) {
-            return Some(a.drop_prefix(prefix))
-        }
-    }
-    None
-}
-
-parse_optimize : List(Str) -> Optimize
-parse_optimize = |args| {
-    match flag_value(args, "-Doptimize=") {
-        Some("Debug") => Debug
-        Some("ReleaseFast") => ReleaseFast
-        Some("ReleaseSafe") => ReleaseSafe
-        Some("ReleaseSmall") => ReleaseSmall
-        _ => ReleaseFast
-    }
-}
-
-parse_engine_id : Str -> [Ok(EngineName), Err(Str)]
-parse_engine_id = |id| {
-    match id {
-        "godot" | "godot-stable" => Ok(Godot)
-        "godot4.5" | "godot4.5.1" | "godot4_5" => Ok(Godot451)
-        "redot" | "redot-stable" => Ok(Redot)
-        _ => Err(id)
-    }
-}
-
-engine_by_name : EngineName -> EngineSpec
-engine_by_name = |n| {
-    for e in engine_specs {
-        if e.name == n {
-            return e
-        }
-    }
-    {
-        name: Godot451,
-        slug: "godot4_5",
-        cli_id: "godot4.5",
-        program: "godot4.5",
-    }
-}
-
-parse_baseline : List(Str) -> EngineSpec
-parse_baseline = |args| {
-    match flag_value(args, "--baseline=") {
-        Some(id) =>
-            match parse_engine_id(id) {
-                Ok(n) => engine_by_name(n)
-                Err(_) => engine_by_name(Godot451)
-            }
-        None => engine_by_name(Godot451)
-    }
-}
-
-split_comma : Str -> List(Str)
-split_comma = |s| {
-    bytes = s.to_utf8()
-    var $acc = []
-    var $cur = []
-    for b in bytes {
-        if b == 44.U8 {
-            part =
-                match Str.from_utf8($cur) {
-                    Ok(p) => p.trim()
-                    Err(_) => ""
-                }
-            if !part.is_empty() {
-                $acc = $acc.append(part)
-            }
-            $cur = []
-        } else {
-            $cur = $cur.append(b)
-        }
-    }
-    last =
-        match Str.from_utf8($cur) {
-            Ok(p) => p.trim()
-            Err(_) => ""
-        }
-    if !last.is_empty() {
-        $acc = $acc.append(last)
-    }
-    $acc
-}
-
-parse_engines : List(Str), EngineSpec -> List(EngineSpec)
-parse_engines = |args, baseline| {
-    match flag_value(args, "--engines=") {
-        Some("none") => [baseline]
-        Some(raw) => {
-            var $out = [baseline]
-            for id in split_comma(raw) {
-                match parse_engine_id(id) {
-                    Ok(n) => {
-                        extra = engine_by_name(n)
-                        var $dup = Bool.False
-                        for e in $out {
-                            if e.name == extra.name {
-                                $dup = Bool.True
-                            }
-                        }
-                        if !$dup {
-                            $out = $out.append(extra)
-                        }
-                    }
-                    Err(_) => {}
-                }
-            }
-            $out
-        }
-        None => [
-            baseline,
-            engine_by_name(Godot),
-            engine_by_name(Redot),
-        ]
-    }
-}
-
-parse_targets : List(Str) -> List(HostTarget)
-parse_targets = |args| {
-    match flag_value(args, "--targets=") {
-        Some("all") => host_targets
-        Some("auto") | None => {
-            # Default publish targets: x64musl + wasm32
-            var $out = []
-            for h in host_targets {
-                if h.name_str == "wasm32" or h.name_str == "x64musl" {
-                    $out = $out.append(h)
-                }
-            }
-            $out
-        }
-        Some(raw) => {
-            names = split_comma(raw)
-            var $out = []
-            for h in host_targets {
-                for n in names {
-                    if h.name_str == n {
-                        $out = $out.append(h)
-                    }
-                }
-            }
-            if $out.len() == 0 {
-                var $fallback = []
-                for h in host_targets {
-                    if h.name_str == "wasm32" or h.name_str == "x64musl" {
-                        $fallback = $fallback.append(h)
-                    }
-                }
-                $fallback
-            } else {
-                $out
-            }
-        }
-    }
-}
-
-parse_tag : List(Str) -> [AutoTag, Tag(Str)]
-parse_tag = |args| {
-    match flag_value(args, "--tag=") {
-        Some(t) => Tag(t)
-        None => AutoTag
-    }
-}
-
-parse_config : List(Str) -> PubConfig
-parse_config = |args| {
-    baseline = parse_baseline(args)
-    {
-        baseline,
-        engines: parse_engines(args, baseline),
-        hosts: parse_targets(args),
-        optimize: parse_optimize(args),
-        publish: { tag: parse_tag(args) },
-    }
-}
-
 # =============================================================================
 # Paths
 # =============================================================================
 
-engine_dump_dir : EngineSpec -> Str
-engine_dump_dir = |e| "dump-out/${e.slug}"
+engine_dump_dir : Engine -> Str
+engine_dump_dir = |e| "dump-out/${e.to_path_slug()}"
 
-engine_platform_dir : EngineSpec -> Str
-engine_platform_dir = |e| "platform-out/${e.slug}"
+engine_platform_dir : Engine -> Str
+engine_platform_dir = |e| "platform-out/${e.to_path_slug()}"
 
-engine_glue_dir : EngineSpec -> Str
-engine_glue_dir = |e| "host/glue-out/${e.slug}"
+engine_glue_dir : Engine -> Str
+engine_glue_dir = |e| "host/glue-out/${e.to_path_slug()}"
 
-engine_bundle_dir : EngineSpec -> Str
-engine_bundle_dir = |e| "bundle-out/${e.slug}"
+engine_bundle_dir : Engine -> Str
+engine_bundle_dir = |e| "bundle-out/${e.to_path_slug()}"
 
-## Human-readable engine label for release notes / asset names
-engine_label : EngineSpec -> Str
-engine_label = |e| {
-    match e.name {
-        Godot => "godot (latest)"
-        Godot451 => "godot4.5 (baseline)"
-        Redot => "redot (latest)"
-    }
-}
 
-optimize_str : Optimize -> Str
-optimize_str = |o| {
-    match o {
-        Debug => "Debug"
-        ReleaseFast => "ReleaseFast"
-        ReleaseSafe => "ReleaseSafe"
-        ReleaseSmall => "ReleaseSmall"
-    }
-}
 
 # =============================================================================
 # Shell helpers
@@ -539,7 +181,7 @@ find_replace_cmd = |id, depends_on, file, pairs, description| {
 # Phases
 # =============================================================================
 
-phase_prepare : NodeId, List(EngineSpec) -> PhaseResult
+phase_prepare : NodeId, List(Engine) -> PhaseResult
 phase_prepare = |start_id, engines| {
     var $id = start_id
     var $cmds = []
@@ -593,7 +235,7 @@ phase_prepare = |start_id, engines| {
     { cmds: $cmds, terminal_ids: $terminals, next_id: $id }
 }
 
-phase_dump : NodeId, List(NodeId), EngineSpec -> PhaseResult
+phase_dump : NodeId, List(NodeId), Engine -> PhaseResult
 phase_dump = |start_id, prepare_ids, eng| {
     dump_dir = engine_dump_dir(eng)
     dump = Build.cmd({
@@ -604,18 +246,18 @@ phase_dump = |start_id, prepare_ids, eng| {
             "${dump_dir}/gdextension_interface.h",
             "${dump_dir}/extension_api.json",
         ],
-        program: eng.program,
+        program: eng.to_name(),
         args: ["--headless", "--dump-gdextension-interface", "--dump-extension-api"],
-        description: "dump (${eng.slug})",
+        description: "dump (${eng.to_path_slug()})",
         cwd: dump_dir,
         env: [],
     })
     { cmds: [dump], terminal_ids: [start_id], next_id: start_id + 1 }
 }
 
-phase_glue_engine : NodeId, List(NodeId), List(NodeId), EngineSpec, List(HostTarget) -> PhaseResult
+phase_glue_engine : NodeId, List(NodeId), List(NodeId), Engine, List(CpuArchOS) -> PhaseResult
 phase_glue_engine = |start_id, prepare_ids, dump_ids, eng, hosts| {
-    slug = eng.slug
+    #slug = eng.to_path_slug()
     glue_dir = engine_glue_dir(eng)
     platform_dir = engine_platform_dir(eng)
     var $id = start_id
@@ -632,9 +274,9 @@ phase_glue_engine = |start_id, prepare_ids, dump_ids, eng, hosts| {
             "run",
             "scripts/gdextension_interface.generate.roc",
             "--",
-            "--engine=${slug}",
+            "--engine=${eng.to_name()}",
         ],
-        description: "Generate gdextension_interface (${slug})",
+        description: "Generate gdextension_interface (${eng.to_name()})",
         cwd: "",
         env: [],
     })
@@ -655,10 +297,10 @@ phase_glue_engine = |start_id, prepare_ids, dump_ids, eng, hosts| {
             "run",
             "scripts/extension_api.generate.roc",
             "--",
-            "--engine=${slug}",
-            "--targets=${Str.join_with(hosts.map(|h| h.name_str), ",")}",
+            "--engine=${eng.to_name()}",
+            "--targets=${Str.join_with(hosts.map(|h| h.to_name()), ",")}",
         ],
-        description: "Generate extension_api platform (${slug})",
+        description: "Generate extension_api platform (${eng.to_name()})",
         cwd: "",
         env: [],
     })
@@ -678,7 +320,7 @@ phase_glue_engine = |start_id, prepare_ids, dump_ids, eng, hosts| {
             glue_dir,
             "${platform_dir}/main.roc",
         ],
-        description: "roc glue (${slug})",
+        description: "roc glue (${eng.to_name()})",
         cwd: "",
         env: [],
     })
@@ -700,7 +342,7 @@ phase_glue_engine = |start_id, prepare_ids, dump_ids, eng, hosts| {
                     \\fn nativeWriteStderr_PATCHED_MARKER
             },
         ],
-        "patch glue marker (${slug})",
+        "patch glue marker (${eng.to_name()})",
     )
     $cmds = $cmds.append(patch)
     patch_id = $id
@@ -726,7 +368,7 @@ phase_glue_engine = |start_id, prepare_ids, dump_ids, eng, hosts| {
                 "",
             ),
         ],
-        description: "note patched glue (${slug})",
+        description: "note patched glue (${eng.to_name()})",
         cwd: "",
         env: [],
     })
@@ -741,7 +383,7 @@ phase_glue_engine = |start_id, prepare_ids, dump_ids, eng, hosts| {
         outputs: ["${glue_dir}/gde_call.zig"],
         program: "cp",
         args: ["host/gde_call.template.zig", "${glue_dir}/gde_call.zig"],
-        description: "cp gde_call.zig (${slug})",
+        description: "cp gde_call.zig (${eng.to_name()})",
         cwd: "",
         env: [],
     })
@@ -756,7 +398,7 @@ phase_glue_engine = |start_id, prepare_ids, dump_ids, eng, hosts| {
         outputs: [],
         program: "zig",
         args: ["test", "${glue_dir}/gdextension_interface.zig"],
-        description: "zig test gdextension_interface (${slug})",
+        description: "zig test gdextension_interface (${eng.to_name()})",
         cwd: "",
         env: [],
     })
@@ -771,7 +413,7 @@ phase_glue_engine = |start_id, prepare_ids, dump_ids, eng, hosts| {
         outputs: [],
         program: "roc",
         args: ["check", "${platform_dir}/main.roc"],
-        description: "roc check platform (${slug})",
+        description: "roc check platform (${eng.to_name()})",
         cwd: "",
         env: [],
     })
@@ -786,9 +428,10 @@ phase_glue_engine = |start_id, prepare_ids, dump_ids, eng, hosts| {
     }
 }
 
-zig_host_args : HostTarget, Optimize, Str -> List(Str)
-zig_host_args = |host, opt, out_path| {
-    o = optimize_str(opt)
+zig_host_args : CpuArchOS, Optimize, Str -> List(Str)
+zig_host_args = |cpu_arch_os, opt, out_path| {
+    host = Host.to_target(cpu_arch_os)
+    o = Host.optimize_str(opt)
     base =
         match host.kind {
             WasmObj =>
@@ -827,7 +470,7 @@ zig_host_args = |host, opt, out_path| {
 }
 
 ## Sequential Zig host compiles (one at a time).
-phase_hosts_engine : NodeId, List(NodeId), List(NodeId), EngineSpec, List(HostTarget), Optimize -> PhaseResult
+phase_hosts_engine : NodeId, List(NodeId), List(NodeId), Engine, List(CpuArchOS), Optimize -> PhaseResult
 phase_hosts_engine = |start_id, glue_ids, prior_ids, eng, hosts, opt| {
     var $id = start_id
     var $cmds = []
@@ -835,8 +478,8 @@ phase_hosts_engine = |start_id, glue_ids, prior_ids, eng, hosts, opt| {
     var $last = $prev
 
     for h in hosts {
-        out_dir = "${engine_platform_dir(eng)}/targets/${h.name_str}"
-        out_path = "${out_dir}/${h.lib_file}"
+        out_dir = "${engine_platform_dir(eng)}/targets/${h.to_name()}"
+        out_path = "${out_dir}/${Host.to_target(h).lib_file}"
 
         mk = Build.cmd({
             id: $id,
@@ -845,7 +488,7 @@ phase_hosts_engine = |start_id, glue_ids, prior_ids, eng, hosts, opt| {
             outputs: [],
             program: "mkdir",
             args: ["-p", out_dir],
-            description: "mkdir host target ${eng.slug}/${h.name_str}",
+            description: "mkdir host target ${eng.to_name()}: ${eng.to_path_slug()}/${h.to_name()}",
             cwd: "",
             env: [],
         })
@@ -860,7 +503,7 @@ phase_hosts_engine = |start_id, glue_ids, prior_ids, eng, hosts, opt| {
             outputs: [out_path],
             program: "zig",
             args: zig_host_args(h, opt, out_path),
-            description: "compile host ${eng.slug}/${h.name_str}",
+            description: "compile host ${eng.to_name()}: ${eng.to_path_slug()}/${h.to_name()}",
             cwd: "",
             env: [],
         })
@@ -873,7 +516,7 @@ phase_hosts_engine = |start_id, glue_ids, prior_ids, eng, hosts, opt| {
     { cmds: $cmds, terminal_ids: $last, next_id: $id }
 }
 
-phase_bundle_engine : NodeId, List(NodeId), EngineSpec, List(HostTarget) -> PhaseResult
+phase_bundle_engine : NodeId, List(NodeId), Engine, List(CpuArchOS) -> PhaseResult
 phase_bundle_engine = |start_id, host_ids, eng, hosts| {
     var $id = start_id
     var $cmds = []
@@ -886,7 +529,7 @@ phase_bundle_engine = |start_id, host_ids, eng, hosts| {
         outputs: [],
         program: "mkdir",
         args: ["-p", engine_bundle_dir(eng)],
-        description: "mkdir bundle-out (${eng.slug})",
+        description: "mkdir bundle-out (${eng.to_name()})",
         cwd: "",
         env: [],
     })
@@ -896,7 +539,7 @@ phase_bundle_engine = |start_id, host_ids, eng, hosts| {
 
     var $bundle_args = ["bundle", "main.roc"]
     for h in hosts {
-        $bundle_args = $bundle_args.append("targets/${h.name_str}/${h.lib_file}")
+        $bundle_args = $bundle_args.append("targets/${h.to_name()}/${Host.to_target(h).lib_file}")
     }
 
     bund = Build.cmd({
@@ -906,7 +549,7 @@ phase_bundle_engine = |start_id, host_ids, eng, hosts| {
         outputs: [],
         program: "roc",
         args: $bundle_args,
-        description: "roc bundle (${eng.slug})",
+        description: "roc bundle (${eng.to_name()})",
         cwd: plat,
         env: [],
     })
@@ -922,9 +565,9 @@ phase_bundle_engine = |start_id, host_ids, eng, hosts| {
         program: "sh",
         args: [
             "-c",
-            "mkdir -p bundle-out/${eng.slug} && mv -f platform-out/${eng.slug}/*.tar.zst bundle-out/${eng.slug}/",
+            "mkdir -p bundle-out/${eng.to_path_slug()} && mv -f platform-out/${eng.to_path_slug()}/*.tar.zst bundle-out/${eng.to_path_slug()}/",
         ],
-        description: "move bundle tar.zst (${eng.slug})",
+        description: "move bundle tar.zst (${eng.to_name()})",
         cwd: "",
         env: [],
     })
@@ -941,7 +584,7 @@ phase_bundle_engine = |start_id, host_ids, eng, hosts| {
 ##
 ## Important: never put bash `${name}` inside a Roc string literal.
 ## Always build it with sh_dollar_brace("name").
-phase_publish : NodeId, List(NodeId), EngineSpec, List(EngineSpec), PublishOpts -> PhaseResult
+phase_publish : NodeId, List(NodeId), Engine, List(Engine), PublishOpts -> PhaseResult
 phase_publish = |start_id, depends_on, baseline, engines, opts| {
     tag_line =
         match opts.tag {
@@ -961,7 +604,7 @@ phase_publish = |start_id, depends_on, baseline, engines, opts| {
     var $stage_parts = []
     for e in engines {
         is_base =
-            if e.name == baseline.name {
+            if e.to_name() == baseline.to_name() {
                 "yes"
             } else {
                 "no"
@@ -971,9 +614,9 @@ phase_publish = |start_id, depends_on, baseline, engines, opts| {
                 $stage_parts,
                 [
                     "stage_engine '",
-                    e.slug,
+                    e.to_path_slug(),
                     "' '",
-                    engine_label(e),
+                    e.to_name(),
                     "' '",
                     is_base,
                     "'\n",
@@ -1294,24 +937,41 @@ phase_publish = |start_id, depends_on, baseline, engines, opts| {
     }
 }
 
+PubConfig : {
+    baseline : Engine,
+    engines : List(Engine),
+    hosts : List(CpuArchOS),
+    optimize : Optimize,
+    publish : PublishOpts,
+}
+
 # =============================================================================
 # main!
 # =============================================================================
 
-main! : List(Str) => Try({}, [Exit(I32)])
+main! : List(Str) => Try({}, _)
 main! = |args| {
-    cfg = parse_config(args)
+    cfg : PubConfig
+    cfg = {
+        baseline: Args.parse_baseline_flag(args)?,
+        engines: Args.parse_engines_flag(args)?,
+        hosts: Args.parse_targets_flag(args)?,
+        optimize: Args.parse_optimize_flag(args),
+        publish: {
+            tag: Args.parse_tag_flag(args)
+        },
+    }
 
     Log.info!("Publish — engine × host matrix (Zig hosts sequential)")
-    Log.info!("optimize=${optimize_str(cfg.optimize)}")
-    Log.info!("baseline=${cfg.baseline.slug}")
+    Log.info!("optimize=${Host.optimize_str(cfg.optimize)}")
+    Log.info!("baseline=${cfg.baseline.to_name()}")
     Log.info!("engines:")
     for e in cfg.engines {
-        Log.info!("  - ${e.slug} (cli=${e.cli_id})")
+        Log.info!("  - ${e.to_name()}")
     }
     Log.info!("hosts:")
     for h in cfg.hosts {
-        Log.info!("  - ${h.name_str}")
+        Log.info!("  - ${h.to_name()}")
     }
 
     prep = phase_prepare(1, cfg.engines)
@@ -1322,7 +982,7 @@ main! = |args| {
     var $zig_prior = []
 
     for e in cfg.engines {
-        Log.info!("engine=${e.slug}")
+        Log.info!("engine=${e.to_path_slug()}")
 
         d = phase_dump($id, prep.terminal_ids, e)
         $cmds = List.concat($cmds, d.cmds)
@@ -1353,7 +1013,7 @@ main! = |args| {
         Ok({}) => {
             Log.info!("publish finished")
             for eng in cfg.engines {
-                Log.info!("  bundle-out/${eng.slug}/")
+                Log.info!("  bundle-out/${eng.to_path_slug()}/")
             }
             Ok({})
         }

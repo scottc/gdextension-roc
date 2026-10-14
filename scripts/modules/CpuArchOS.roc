@@ -1,4 +1,4 @@
-## Host rows we know how to emit in platform main.roc targets:
+## CpuArchOS.roc
 import StringHelper
 
 CpuArchOS := [
@@ -67,27 +67,5 @@ CpuArchOS := [
         }
     }
 
-    ## Takes raw string args, parses flag: --targets=wasm32,x64musl
-    parse_targets_flag : List(Str) -> List(CpuArchOS)
-    parse_targets_flag = |args| {
-        targets_key = "--targets="
-        for str in args {
-            if str.starts_with(targets_key) {
-                id = str.replace_first(targets_key, "")
-                match id {
-                    "all" => return all
-                    "auto" => return auto
-                    raw => {
-                        parts = StringHelper.split_comma(raw)
-                        if parts.is_empty() {
-                            return auto # default
-                        } else {
-                            return parts.map(from_name)
-                        }
-                    }
-                }
-            }
-        }
-        CpuArchOS.auto
-    }
+
 }

@@ -52,7 +52,7 @@ main! = |args| {
     Stdout.line!("# Engine: ${Str.inspect(engine)}")?
 
     selected_targets : List(CpuArchOS)
-    selected_targets = CpuArchOS.parse_targets_flag(str_args)
+    selected_targets = Args.parse_targets_flag(str_args)?
 
     Stdout.line!("# Targets: ${Str.join_with(selected_targets.map(CpuArchOS.to_name), ",")}")?
 
