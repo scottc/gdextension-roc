@@ -112,19 +112,26 @@
         };
       in
       {
-        packages.default = blazium;
-        packages.blazium = blazium;
+        packages = {
+          "blazium0.6" = blazium;
+          blazium = blazium;
+          default = blazium;
+        };
 
-        apps.default = {
-          type = "app";
-          program = "${blazium}/bin/blazium";
-          meta = {
-            description = "Blazium Engine editor";
+        apps = {
+          "blazium0.6" = {
+            type = "app";
+            program = "${blazium}/bin/blazium";
           };
+          default = self.apps.${system}."blazium0.6";
         };
       }
     ))
     // {
-      overlays.default = overlay;
+      overlays.default = final: prev: {
+        "blazium0.6" =
+          self.packages.${final.stdenv.hostPlatform.system}."blazium0.6"
+            or (throw "blazium-nix: no blazium0.6 for ${final.stdenv.hostPlatform.system}");
+      };
     };
 }
