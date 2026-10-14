@@ -23,7 +23,7 @@
 #
 
 app [main!] {
-    pf: platform "https://github.com/scottc/roc-build/releases/download/v0.0.5-alpha/5YqLuJixx2M3z6GcQN666sSVW2TXZkDt52Ny7V67poSD.tar.zst",
+    pf: platform "https://github.com/scottc/roc-build/releases/download/v0.0.6-alpha/8W24oBtfDBC1pg3gJnbnLYGj8kQDPxpfnVCskvqksKcH.tar.zst",
 }
 
 import pf.Build
@@ -210,7 +210,7 @@ engine_specs = [
 ]
 
 glue_spec : Str
-glue_spec = "vendor/roc/nightly-2026-09-27-a3ce7f1/ZigGlue.roc"
+glue_spec = "vendor/roc/nightly-2026-10-12-2664a27/ZigGlue.roc"
 
 # =============================================================================
 # CLI

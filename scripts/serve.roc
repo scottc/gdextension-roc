@@ -21,7 +21,7 @@ Context : {}
 
 program = { init!, respond!, shutdown! }
 
-init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
+init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..other])
 init! = || {
 
     serve_path = Env.var_str!("SERVE_PATH")
@@ -58,7 +58,7 @@ init! = || {
 	})
 }
 
-respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..other])
 respond! = |request, _context| {
 	target = request.target()
 	Stdout.line!("Roc handled ${Str.inspect(target)}")
@@ -75,5 +75,5 @@ respond! = |request, _context| {
 		}
 }
 
-shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..other])
 shutdown! = |_reason, _context| Ok({})
