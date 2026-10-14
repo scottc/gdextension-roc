@@ -302,15 +302,15 @@
 						(name "locked")
 						(value (Attrs ((
 							(name "lastModified")
-							(value (Int 1791556879))) (
+							(value (Int 1791901464))) (
 							(name "narHash")
-							(value (Str "sha256-D74X1VEVoGe6iYKqGRtHdOYhu+YQQQ5eDJ22bA+Ej4k="))) (
+							(value (Str "sha256-RgaALRS8wxmKnUYJbTj40+aHgJHM6TaPG4ayRTnexyw="))) (
 							(name "owner")
 							(value (Str "roc-lang"))) (
 							(name "repo")
 							(value (Str "roc-overlay"))) (
 							(name "rev")
-							(value (Str "57595f4dff90d2923f3cbbb79f17595b24cad496"))) (
+							(value (Str "68d7797d57638b54c0f1e9684b17f6dd8eea4225"))) (
 							(name "type")
 							(value (Str "github"))))))) (
 						(name "original")
@@ -411,11 +411,11 @@
 		(provider "nix")
 		(ref "github:NixOS/nixpkgs/nixos-unstable")
 		(rev "7fd4004d0511991fff3a0524856a9be09e28c5f0")) (
-		(digest "sha256:0fbe17d55115a067ba8982aa191b4774e621bbe610410e5e0c9db66c0f848f89")
+		(digest "sha256:4606802d14bcc3198a9d46096d38f8d3e6878091cce9368f1b86b24539dec72c")
 		(name "roc")
 		(provider "nix")
 		(ref "github:roc-lang/roc-overlay")
-		(rev "57595f4dff90d2923f3cbbb79f17595b24cad496")) (
+		(rev "68d7797d57638b54c0f1e9684b17f6dd8eea4225")) (
 		(digest "sha256:d77f92568655a439fe584109ef18fae6eafc2884087956e001765820ce0d8483")
 		(name "redot")
 		(provider "nix")

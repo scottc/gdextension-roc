@@ -1,5 +1,14 @@
 app [config] { pf: platform "https://github.com/lukewilliamboswell/roc-blueprint/releases/download/0.5.0/CupqPH9snWf11g7tWgcJf4Yg5cJ3K9fhL7fSgqDcqJQH.tar.zst" }
 
+import pf.Tool
+
+# Roc versions:
+# https://github.com/roc-lang/roc-overlay/blob/master/sources.json
+
+# roc_version = "nightly-2026-10-01-a932c65"
+# roc_pkg : Tool
+# roc_pkg = "rocpkgs.${roc_version}"
+
 config = [
 	Name("gdextension-roc-platform-generator"),
 	Overlay("roc", "github:roc-lang/roc-overlay"),
@@ -8,7 +17,7 @@ config = [
 	Shell("default", [Use("dev-env")]),
 	Environment("dev-env", [
     	Overlays(["roc"]),
-    	Command("roc", "rocpkgs.nightly-2026-09-27-a3ce7f1"),
+    	Command("roc", "rocpkgs.nightly-2026-10-01-a932c65"),
   			Tools([
 				"zig",
                 "godotPackages_4_5.godot",
@@ -18,7 +27,7 @@ config = [
 		"ci-env",
 		[
 			Overlays(["roc", "redot"]),
-			Command("roc", "rocpkgs.nightly-2026-09-27-a3ce7f1"),
+			Command("roc", "rocpkgs.nightly-2026-10-01-a932c65"),
 			Tools([
 				"zig",
           		"godotPackages_4_5.godot",
@@ -40,7 +49,7 @@ config = [
 		"gh-publish-env",
 		[
 			Overlays(["roc", "redot"]),
-			Command("roc", "rocpkgs.nightly-2026-09-27-a3ce7f1"),
+			Command("roc", "rocpkgs.nightly-2026-10-01-a932c65"),
 			Tools([
 			    "gh",
     			"zig",
