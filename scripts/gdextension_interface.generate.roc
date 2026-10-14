@@ -23,14 +23,11 @@ import pf.Utc
 import pf.OsStr
 import pf.Cmd
 
-needle_doc = "/**".to_utf8()
-needle_block_open = "/*".to_utf8()
-needle_block_close = "*/".to_utf8()
-needle_doc_end = "*/".to_utf8()
-needle_typedef = "typedef".to_utf8()
-needle_hash = "#".to_utf8()
-needle_line_comment = "//".to_utf8()
-needle_const = "const".to_utf8()
+import modules/StringHelper
+import modules/GDExtensionInterfaceScanner
+import modules/GDExtensionInterfaceParser
+import modules/GDExtensionInterface exposing []
+import modules/GDExtensionInterfaceRenderer
 
 Item : { comment: CommentInfo, typedef: TypeDefInfo }
 
@@ -120,14 +117,14 @@ main! = |args| {
 
     while $guard < 50_000.U64 {
         $guard = $guard + 1
-        match next_typedef_block(bytes, $cursor) {
+        match GDExtensionInterfaceScanner.next_typedef_block(bytes, $cursor) {
             Err(Done) => break
             Ok(scanned) => {
                 $cursor = scanned.next
                 $n = $n + 1
 
-                comment = parse_comment_docs(scanned.comment)
-                match parse_typedef(scanned.typedef) {
+                comment = GDExtensionInterfaceParser.parse_comment_docs(scanned.comment)
+                match GDExtensionInterfaceParser.parse_typedef(scanned.typedef) {
                     Ok(td) => {
                         $ok = $ok + 1
                         $items = $items.append({ comment: comment, typedef: td })
@@ -273,7 +270,7 @@ resolve_enum_variant_values = |variants| {
     var $auto = 0.I64
 
     for v in variants {
-        val = strip_c_comments(v.value).trim()
+        val = GDExtensionInterfaceParser.strip_c_comments(v.value).trim()
 
         n =
             if val.is_empty() {
@@ -317,7 +314,7 @@ render_doc_block = |c| {
         $lines = $lines.append("/// @since ${c.since}")
     }
     if !c.description.is_empty() {
-        for d in split_lines(c.description) {
+        for d in StringHelper.split_lines(c.description) {
             t = d.trim()
             if !t.is_empty() {
                 $lines = $lines.append("/// ${t}")
@@ -330,7 +327,7 @@ render_doc_block = |c| {
     if !c.return_doc.is_empty() {
         $lines = $lines.append("/// @return ${c.return_doc}")
     }
-    join_with($lines, "\n")
+    StringHelper.join_with($lines, "\n")
 }
 
 with_doc : CommentInfo, Str -> Str
@@ -359,7 +356,7 @@ render_enum = |name, variants, c| {
         $parts = $parts.append("    ${field} = ${v.value},")
     }
     $parts = $parts.append("};")
-    with_doc(c, join_with($parts, "\n"))
+    with_doc(c, StringHelper.join_with($parts, "\n"))
 }
 
 enum_variant_zig_name : Str, Str -> Str
@@ -370,7 +367,7 @@ enum_variant_zig_name = |full, common_prefix| {
         } else {
             full
         }
-    lower = lower_snake(stripped)
+    lower = StringHelper.lower_snake(stripped)
     escape_zig_ident(lower)
 }
 
@@ -404,14 +401,14 @@ shared_prefix = |a, b| {
             bb.len()
         }
     while $i < max {
-        match (list_get(ab, $i), list_get(bb, $i)) {
+        match (StringHelper.list_get(ab, $i), StringHelper.list_get(bb, $i)) {
             (Ok(x), Ok(y)) if x == y => {
                 $i = $i + 1
             }
             _ => break
         }
     }
-    from_utf8_lossy(list_take_first(ab, $i))
+    StringHelper.from_utf8_lossy(StringHelper.list_take_first(ab, $i))
 }
 
 trim_prefix_to_underscore : Str -> Str
@@ -428,7 +425,7 @@ trim_prefix_to_underscore = |p| {
     if $last_us == 0 {
         ""
     } else {
-        from_utf8_lossy(list_take_first(bytes, $last_us))
+        StringHelper.from_utf8_lossy(StringHelper.list_take_first(bytes, $last_us))
     }
 }
 
@@ -485,7 +482,7 @@ render_struct = |name, fields, c| {
         $parts = $parts.append("    ${field_name}: ${zig_type(f.type_str)},")
     }
     $parts = $parts.append("};")
-    with_doc(c, join_with($parts, "\n"))
+    with_doc(c, StringHelper.join_with($parts, "\n"))
 }
 
 render_func_ptr_type : Str, Str, List(ParamInfo), CommentInfo -> Str
@@ -505,7 +502,7 @@ format_fn_params = |parameters| {
     if parameters.len() == 0 {
         ""
     } else {
-        join_with(parameters.map(|p| zig_type(p.type_str)), ", ")
+        StringHelper.join_with(parameters.map(|p| zig_type(p.type_str)), ", ")
     }
 }
 
@@ -526,7 +523,7 @@ render_interface_struct = |fns| {
             }
         $fields = $fields.append("${doc}    ${f.api_name}: ${ty},")
     }
-    fields_body = join_with($fields, "\n")
+    fields_body = StringHelper.join_with($fields, "\n")
     \\pub const Interface = struct {
     \\    // Raw function pointers – all non-optional after successful init
     \\${fields_body}
@@ -553,7 +550,7 @@ render_load_interface = |fns| {
             \\.${f.api_name} = try pa(gpa, "${f.api_name}", ${ty}),
         )
     }
-    body = join_with($inits, "\n")
+    body = StringHelper.join_with($inits, "\n")
     \\pub fn loadInterface(get_proc_address: GDExtensionInterfaceGetProcAddress) !Interface {
     \\    const gpa = get_proc_address;
     \\    return .{
@@ -568,7 +565,7 @@ render_load_interface = |fns| {
 
 zig_type : Str -> Str
 zig_type = |raw| {
-    t = normalize_ws(raw).trim()
+    t = StringHelper.normalize_ws(raw).trim()
     if t.is_empty() or t == "void" {
         "void"
     } else {
@@ -602,7 +599,7 @@ split_c_type = |t| {
                 $end = $end - 1
             }
             _ => {
-                if $end >= 5 and bytes_eq_at(bytes, $end - 5, needle_const) {
+                if $end >= 5 and StringHelper.bytes_eq_at(bytes, $end - 5, GDExtensionInterfaceScanner.needle_const) {
                     $is_const = Bool.True
                     $end = $end - 5
                 } else {
@@ -625,7 +622,7 @@ split_c_type = |t| {
         }
         $out
     }
-    base = from_utf8_lossy(base_bytes).trim()
+    base = StringHelper.from_utf8_lossy(base_bytes).trim()
     { base: base, stars: $stars, is_const: $is_const }
 }
 
@@ -690,902 +687,4 @@ apply_pointers = |base, stars, is_const| {
         }
         $t
     }
-}
-
-# ---------------------------------------------------------------------------
-# Scanner
-# ---------------------------------------------------------------------------
-
-ScannedTypeDefSlice : {
-    comment : Str,
-    typedef : Str,
-    next : U64,
-}
-
-bytes_eq_at : List(U8), U64, List(U8) -> Bool
-bytes_eq_at = |bytes, i, needle| {
-    nlen = needle.len()
-    if i + nlen > bytes.len() {
-        Bool.False
-    } else {
-        var $k = 0.U64
-        var $ok = Bool.True
-        while $k < nlen {
-            match (bytes.get(i + $k), needle.get($k)) {
-                (Ok(a), Ok(b)) if a == b => {
-                    $k = $k + 1
-                }
-                _ => {
-                    $ok = Bool.False
-                    break
-                }
-            }
-        }
-        $ok
-    }
-}
-
-match_at : List(U8), U64, List(U8) -> Bool
-match_at = |bytes, i, needle_bytes| {
-    bytes_eq_at(bytes, i, needle_bytes)
-}
-
-find_from : List(U8), U64, List(U8) -> Try(U64, {})
-find_from = |bytes, start, needle| {
-    nlen = needle.len()
-    len = bytes.len()
-    if nlen == 0 {
-        return Ok(start)
-    }
-    var $i = start
-    while $i + nlen <= len {
-        if bytes_eq_at(bytes, $i, needle) {
-            return Ok($i)
-        }
-        $i = $i + 1
-    }
-    Err({})
-}
-
-find_str : Str, Str -> Try(U64, {})
-find_str = |hay, needle| {
-    find_from(hay.to_utf8(), 0, needle.to_utf8())
-}
-
-next_typedef_block : List(U8), U64 -> Try(ScannedTypeDefSlice, [Done])
-next_typedef_block = |bytes, start| {
-    var $i = start
-    len = bytes.len()
-    while $i < len {
-        match list_get(bytes, $i) {
-            Ok(35.U8) => {
-                if is_hash_at(bytes, $i) {
-                    $i = skip_line(bytes, $i)
-                } else {
-                    $i = $i + 1
-                }
-            }
-            Ok(47.U8) => {
-                if match_at(bytes, $i, needle_doc) {
-                    open = $i + 3
-                    match find_from(bytes, open, needle_doc_end) {
-                        Err({}) => return Err(Done)
-                        Ok(close) => {
-                            after = close + 2
-                            j = skip_ws_and_hash(bytes, after)
-                            if match_at(bytes, j, needle_typedef) {
-                                match find_typedef_end(bytes, j) {
-                                    Err({}) => return Err(Done)
-                                    Ok(semi) => {
-                                        return Ok({
-                                            comment: slice_to_str(bytes, open, close),
-                                            typedef: slice_to_str(bytes, j, semi).trim(),
-                                            next: semi + 1,
-                                        })
-                                    }
-                                }
-                            } else {
-                                $i = after
-                            }
-                        }
-                    }
-                } else if match_at(bytes, $i, needle_block_open) {
-                    match find_from(bytes, $i + 2, needle_block_close) {
-                        Err({}) => return Err(Done)
-                        Ok(close) => {
-                            $i = close + 2
-                        }
-                    }
-                } else if match_at(bytes, $i, needle_line_comment) {
-                    $i = skip_line(bytes, $i)
-                } else {
-                    $i = $i + 1
-                }
-            }
-            Ok(116.U8) => {
-                if match_at(bytes, $i, needle_typedef) {
-                    match find_typedef_end(bytes, $i) {
-                        Err({}) => return Err(Done)
-                        Ok(semi) => {
-                            return Ok({
-                                comment: "",
-                                typedef: slice_to_str(bytes, $i, semi).trim(),
-                                next: semi + 1,
-                            })
-                        }
-                    }
-                } else {
-                    $i = $i + 1
-                }
-            }
-            _ => {
-                $i = $i + 1
-            }
-        }
-    }
-    Err(Done)
-}
-
-find_typedef_end : List(U8), U64 -> Try(U64, {})
-find_typedef_end = |bytes, start| {
-    var $i = start
-    var $depth = 0.U64
-    len = bytes.len()
-    while $i < len {
-        match list_get(bytes, $i) {
-            Ok(123.U8) => {
-                $depth = $depth + 1
-                $i = $i + 1
-            }
-            Ok(125.U8) => {
-                if $depth > 0 {
-                    $depth = $depth - 1
-                }
-                $i = $i + 1
-            }
-            Ok(59.U8) if $depth == 0 => return Ok($i)
-            Ok(34.U8) => {
-                $i = skip_c_string(bytes, $i + 1)
-            }
-            _ => {
-                $i = $i + 1
-            }
-        }
-    }
-    Err({})
-}
-
-skip_c_string = |bytes, start| {
-    var $i = start
-    len = bytes.len()
-    while $i < len {
-        match list_get(bytes, $i) {
-            Ok(92.U8) => {
-                if $i + 1 < len {
-                    $i = $i + 2
-                } else {
-                    return len
-                }
-            }
-            Ok(34.U8) => return $i + 1
-            _ => {
-                $i = $i + 1
-            }
-        }
-    }
-    len
-}
-
-is_hash_at : List(U8), U64 -> Bool
-is_hash_at = |bytes, i| {
-    at_line_start =
-        i == 0
-        or (
-            i > 0
-            and (
-                match list_get(bytes, i - 1) {
-                    Ok(10.U8) => Bool.True
-                    Ok(13.U8) => Bool.True
-                    _ => Bool.False
-                }
-            )
-        )
-    at_line_start and match_at(bytes, i, needle_hash)
-}
-
-skip_line : List(U8), U64 -> U64
-skip_line = |bytes, i| {
-    var $j = i
-    len = bytes.len()
-    while $j < len {
-        match list_get(bytes, $j) {
-            Ok(10.U8) => return $j + 1
-            _ => {
-                $j = $j + 1
-            }
-        }
-    }
-    len
-}
-
-skip_ws_and_hash : List(U8), U64 -> U64
-skip_ws_and_hash = |bytes, i| {
-    var $j = i
-    len = bytes.len()
-    while $j < len {
-        if is_hash_at(bytes, $j) {
-            $j = skip_line(bytes, $j)
-        } else {
-            match list_get(bytes, $j) {
-                Ok(32.U8) | Ok(9.U8) | Ok(10.U8) | Ok(13.U8) => {
-                    $j = $j + 1
-                }
-                _ => return $j
-            }
-        }
-    }
-    len
-}
-
-slice_to_str : List(U8), U64, U64 -> Str
-slice_to_str = |bytes, start, end| {
-    len = bytes.len()
-    s = if start > len { len } else { start }
-    e = if end > len { len } else { end }
-    if s >= e {
-        ""
-    } else {
-        var $out = []
-        var $i = s
-        while $i < e {
-            match bytes.get($i) {
-                Ok(b) => {
-                    $out = $out.append(b)
-                }
-                Err(_) => break
-            }
-            $i = $i + 1
-        }
-        from_utf8_lossy($out)
-    }
-}
-
-list_get : List(U8), U64 -> Try(U8, {})
-list_get = |list, i| {
-    match list.get(i) {
-        Ok(b) => Ok(b)
-        Err(_) => Err({})
-    }
-}
-
-# ---------------------------------------------------------------------------
-# Comment + typedef parsers
-# ---------------------------------------------------------------------------
-
-parse_comment_docs : Str -> CommentInfo
-parse_comment_docs = |body| {
-    lines = split_lines(body)
-    var $name = ""
-    var $since = ""
-    var $return_doc = ""
-    var $param_docs = []
-    var $desc_parts = []
-    for raw in lines {
-        line = strip_star(raw).trim()
-        if line.is_empty() {
-            {}
-        } else if line.starts_with("@name") {
-            $name = tag_value(line, "@name")
-        } else if line.starts_with("@since") {
-            $since = tag_value(line, "@since")
-        }
-    }
-    {
-        name: $name,
-        since: $since,
-        description: join_lines($desc_parts),
-        param_docs: $param_docs,
-        return_doc: $return_doc,
-    }
-}
-
-strip_star = |line| {
-    t = line.trim()
-    if t.starts_with("*") {
-        t.drop_prefix("*").trim()
-    } else {
-        t
-    }
-}
-
-tag_value = |line, tag| {
-    line.drop_prefix(tag).trim()
-}
-
-parse_typedef : Str -> Try(TypeDefInfo, [ParseErr(Str)])
-parse_typedef = |line| {
-    t = line.trim()
-    if !t.starts_with("typedef") {
-        return Err(ParseErr("not a typedef"))
-    }
-    rest = t.drop_prefix("typedef").trim()
-    if rest.starts_with("enum") {
-        parse_enum_typedef(rest)
-    } else if rest.starts_with("struct") {
-        parse_struct_typedef(rest)
-    } else if contains_str(rest, "(*") {
-        parse_func_ptr_typedef(rest)
-    } else {
-        parse_alias_typedef(rest)
-    }
-}
-
-parse_enum_typedef = |rest| {
-    after_enum = rest.drop_prefix("enum").trim()
-    match take_braced(after_enum) {
-        Err(_) => Err(ParseErr("enum: missing { }"))
-        Ok({ inner, after }) => {
-            name = after.trim()
-            if name.is_empty() {
-                Err(ParseErr("enum: missing name"))
-            } else {
-                cleaned = strip_c_comments(inner)
-                Ok(Enum({
-                    name: name,
-                    variants: parse_enum_variants(cleaned),
-                }))
-            }
-        }
-    }
-}
-
-strip_c_comments : Str -> Str
-strip_c_comments = |s| {
-    bytes = s.to_utf8()
-    var $out = []
-    var $i = 0.U64
-    len = bytes.len()
-    while $i < len {
-        if $i + 1 < len and match_at(bytes, $i, needle_line_comment) {
-            $i = $i + 2
-            while $i < len {
-                match list_get(bytes, $i) {
-                    Ok(10.U8) => break
-                    _ => {
-                        $i = $i + 1
-                    }
-                }
-            }
-        } else if $i + 1 < len and match_at(bytes, $i, needle_block_open) {
-            $i = $i + 2
-            while $i + 1 < len {
-                if match_at(bytes, $i, needle_block_close) {
-                    $i = $i + 2
-                    break
-                }
-                $i = $i + 1
-            }
-        } else {
-            match list_get(bytes, $i) {
-                Ok(b) => {
-                    $out = $out.append(b)
-                    $i = $i + 1
-                }
-                Err(_) => break
-            }
-        }
-    }
-    from_utf8_lossy($out)
-}
-
-parse_enum_variants : Str -> List(EnumVariant)
-parse_enum_variants = |inner| {
-    var $out = []
-    var $auto = 0.I64
-    for part in split_top_level(inner, ',') {
-        p = part.trim()
-        if p.is_empty() {
-            {}
-        } else {
-            match split_first_char(p, '=') {
-                Ok({ before, after }) => {
-                    n = before.trim()
-                    v = after.trim()
-                    cleaned = strip_c_comments(v).trim()
-                    $out = $out.append({ name: n, value: cleaned })
-                    match I64.from_str(cleaned) {
-                        Ok(num) => {
-                            $auto = num + 1
-                        }
-                        Err(_) => {
-                            $auto = $auto + 1
-                        }
-                    }
-                }
-                Err({}) => {
-                    $out = $out.append({ name: p, value: $auto.to_str() })
-                    $auto = $auto + 1
-                }
-            }
-        }
-    }
-    $out
-}
-
-parse_struct_typedef : Str -> Try(TypeDefInfo, [ParseErr(Str)])
-parse_struct_typedef = |rest| {
-    after_struct = rest.drop_prefix("struct").trim()
-    match take_braced(after_struct) {
-        Err(_) => Err(ParseErr("struct: missing { }"))
-        Ok({ inner, after }) => {
-            name = after.trim()
-            if name.is_empty() {
-                Err(ParseErr("struct: missing name"))
-            } else {
-                cleaned = strip_c_comments(inner)
-                Ok(Struct({ name: name, fields: parse_struct_fields(cleaned) }))
-            }
-        }
-    }
-}
-
-parse_struct_fields : Str -> List(StructField)
-parse_struct_fields = |inner| {
-    var $out = []
-    for part in split_top_level(inner, ';') {
-        p = normalize_ws(part.trim())
-        if p.is_empty() {
-            {}
-        } else {
-            match parse_one_param(p) {
-                Ok({ name, type_str }) if !name.is_empty() => {
-                    $out = $out.append({ name: name, type_str: type_str })
-                }
-                _ => {}
-            }
-        }
-    }
-    $out
-}
-
-parse_func_ptr_typedef : Str -> Try(TypeDefInfo, [ParseErr(Str)])
-parse_func_ptr_typedef = |rest| {
-    bytes = rest.to_utf8()
-    match find_from(bytes, 0, "(*".to_utf8()) {
-        Err({}) => Err(ParseErr("missing (*"))
-        Ok(idx) => {
-            ret_raw = take_bytes(rest, idx).trim()
-            after_star = drop_bytes(rest, idx + 2)
-            match take_until_ascii(after_star, ')') {
-                Err({}) => Err(ParseErr("missing ) after type name"))
-                Ok(type_name) => {
-                    after_name = drop_str_prefix(after_star, type_name).trim()
-                    if !after_name.starts_with(")") {
-                        return Err(ParseErr("expected ) after type name"))
-                    }
-                    after_rparen = after_name.drop_prefix(")").trim()
-                    if !after_rparen.starts_with("(") {
-                        return Err(ParseErr("expected ( args"))
-                    }
-                    args_body = after_rparen.drop_prefix("(").trim()
-                    args_inner =
-                        match take_until_ascii(args_body, ')') {
-                            Ok(s) => s
-                            Err({}) => args_body
-                        }
-                    Ok(FuncPtr({
-                        name: type_name.trim(),
-                        return_type: normalize_ws(ret_raw),
-                        parameters: parse_param_list(args_inner),
-                    }))
-                }
-            }
-        }
-    }
-}
-
-parse_alias_typedef : Str -> Try(TypeDefInfo, [ParseErr(Str)])
-parse_alias_typedef = |rest| {
-    s = normalize_ws(rest.trim())
-    if s.is_empty() {
-        return Err(ParseErr("empty alias"))
-    }
-    toks = normalize_alias_tokens(split_ws(s))
-    match toks.last() {
-        Err(_) => Err(ParseErr("bad alias"))
-        Ok(last) => {
-            if toks.len() < 2 {
-                Err(ParseErr("alias needs type and name"))
-            } else {
-                { name, stars } = peel_leading_stars(last)
-                if name.is_empty() {
-                    Err(ParseErr("alias: name is only stars"))
-                } else {
-                    type_toks = toks.drop_last(1)
-                    type_base = join_with(type_toks, " ")
-                    type_str =
-                        if stars == 0 {
-                            type_base
-                        } else {
-                            "${type_base}${stars_str(stars)}"
-                        }
-                    Ok(Alias({ name: name, type_str: type_str }))
-                }
-            }
-        }
-    }
-}
-
-normalize_alias_tokens : List(Str) -> List(Str)
-normalize_alias_tokens = |toks| {
-    var $out = []
-    for t in toks {
-        if t == "*" {
-            match $out.last() {
-                Ok(prev) => {
-                    $out = $out.drop_last(1).append("${prev}*")
-                }
-                Err(_) => {
-                    $out = $out.append(t)
-                }
-            }
-        } else if t.starts_with("*") and t != "*" {
-            $out = $out.append(t)
-        } else {
-            $out = $out.append(t)
-        }
-    }
-    $out
-}
-
-peel_leading_stars : Str -> { name : Str, stars : U64 }
-peel_leading_stars = |tok| {
-    bytes = tok.to_utf8()
-    var $i = 0.U64
-    var $stars = 0.U64
-    len = bytes.len()
-    while $i < len {
-        match list_get(bytes, $i) {
-            Ok(42.U8) => {
-                $stars = $stars + 1
-                $i = $i + 1
-            }
-            _ => break
-        }
-    }
-    {
-        name: slice_to_str(bytes, $i, bytes.len()),
-        stars: $stars,
-    }
-}
-
-stars_str : U64 -> Str
-stars_str = |n| {
-    match n {
-        0 => ""
-        1 => "*"
-        2 => "**"
-        3 => "***"
-        _ => {
-            var $out = []
-            var $i = 0.U64
-            while $i < n {
-                $out = $out.append(42.U8)
-                $i = $i + 1
-            }
-            from_utf8_lossy($out)
-        }
-    }
-}
-
-parse_param_list = |inner| {
-    s = inner.trim()
-    if s.is_empty() or s == "void" {
-        []
-    } else {
-        var $out = []
-        for part in split_args(s) {
-            match parse_one_param(part) {
-                Ok(p) => {
-                    $out = $out.append(p)
-                }
-                Err(_) => {}
-            }
-        }
-        $out
-    }
-}
-
-parse_one_param = |raw| {
-    p = raw.trim()
-    if p.is_empty() {
-        return Err(ParseErr("empty param"))
-    }
-    toks = split_ws(p)
-    toks2 = merge_star_tokens(toks)
-    match toks2.last() {
-        Err(_) => Err(ParseErr("bad param"))
-        Ok(last) => {
-            if toks2.len() == 1 {
-                Ok({ name: "", type_str: p })
-            } else {
-                { name, stars } = peel_leading_stars(last)
-                if name.is_empty() {
-                    Ok({ name: "", type_str: p })
-                } else {
-                    type_base = join_with(toks2.drop_last(1), " ")
-                    type_str = if stars == 0 { type_base } else { "${type_base}${stars_str(stars)}" }
-                    Ok({ name: name, type_str: type_str })
-                }
-            }
-        }
-    }
-}
-
-merge_star_tokens : List(Str) -> List(Str)
-merge_star_tokens = |toks| {
-    var $out = []
-    for t in toks {
-        if t == "*" {
-            match $out.last() {
-                Ok(prev) => {
-                    $out = append_replace_last($out, "${prev}*")
-                }
-                Err(_) => {
-                    $out = $out.append("*")
-                }
-            }
-        } else {
-            $out = $out.append(t)
-        }
-    }
-    $out
-}
-
-append_replace_last : List(Str), Str -> List(Str)
-append_replace_last = |list, new_last| {
-    list.drop_last(1).append(new_last)
-}
-
-# ---------------------------------------------------------------------------
-# String helpers
-# ---------------------------------------------------------------------------
-
-take_braced : Str -> Try({ inner : Str, after : Str }, [ParseErr(Str)])
-take_braced = |s| {
-    t = s.trim()
-    if !t.starts_with("{") {
-        return Err(ParseErr("expected {"))
-    }
-    bytes = t.to_utf8()
-    var $i = 1.U64
-    var $depth = 1.U64
-    len = bytes.len()
-    while $i < len {
-        match list_get(bytes, $i) {
-            Ok(123.U8) => {
-                $depth = $depth + 1
-                $i = $i + 1
-            }
-            Ok(125.U8) => {
-                $depth = $depth - 1
-                if $depth == 0 {
-                    inner = slice_to_str(bytes, 1, $i)
-                    after = slice_to_str(bytes, $i + 1, bytes.len())
-                    return Ok({ inner: inner, after: after })
-                }
-                $i = $i + 1
-            }
-            _ => {
-                $i = $i + 1
-            }
-        }
-    }
-    Err(ParseErr("unclosed {"))
-}
-
-split_top_level : Str, U8 -> List(Str)
-split_top_level = |s, sep| {
-    bytes = s.to_utf8()
-    var $acc = []
-    var $cur = []
-    var $depth = 0.U64
-    for b in bytes {
-        if b == 40.U8 or b == 123.U8 or b == 91.U8 {
-            $cur = $cur.append(b)
-            $depth = $depth + 1
-        } else if b == 41.U8 or b == 125.U8 or b == 93.U8 {
-            $cur = $cur.append(b)
-            if $depth > 0 {
-                $depth = $depth - 1
-            }
-        } else if b == sep and $depth == 0 {
-            part = from_utf8_lossy($cur).trim()
-            if !part.is_empty() {
-                $acc = $acc.append(part)
-            }
-            $cur = []
-        } else {
-            $cur = $cur.append(b)
-        }
-    }
-    last = from_utf8_lossy($cur).trim()
-    if !last.is_empty() {
-        $acc = $acc.append(last)
-    }
-    $acc
-}
-
-split_first_char : Str, U8 -> Try({ before : Str, after : Str }, {})
-split_first_char = |s, ch| {
-    bytes = s.to_utf8()
-    var $i = 0.U64
-    for b in bytes {
-        if b == ch {
-            return Ok({
-                before: slice_to_str(bytes, 0, $i),
-                after: slice_to_str(bytes, $i + 1, bytes.len()),
-            })
-        }
-        $i = $i + 1
-    }
-    Err({})
-}
-
-contains_str : Str, Str -> Bool
-contains_str = |hay, needle| {
-    match find_str(hay, needle) {
-        Ok(_) => Bool.True
-        Err(_) => Bool.False
-    }
-}
-
-lower_snake : Str -> Str
-lower_snake = |s| {
-    bytes = s.to_utf8()
-    var $out = []
-    for b in bytes {
-        if b >= 65.U8 and b <= 90.U8 {
-            $out = $out.append(b + 32)
-        } else {
-            $out = $out.append(b)
-        }
-    }
-    from_utf8_lossy($out)
-}
-
-split_lines : Str -> List(Str)
-split_lines = |s| {
-    bytes = s.to_utf8()
-    var $acc = []
-    var $cur = []
-    for b in bytes {
-        if b == 10.U8 {
-            $acc = $acc.append(from_utf8_lossy($cur))
-            $cur = []
-        } else {
-            $cur = $cur.append(b)
-        }
-    }
-    $acc = $acc.append(from_utf8_lossy($cur))
-    $acc
-}
-
-join_lines : List(Str) -> Str
-join_lines = |lines| join_with(lines, "\n")
-
-join_with : List(Str), Str -> Str
-join_with = |parts, sep| {
-    var $out = ""
-    var $i = 0.U64
-    for p in parts {
-        if $i > 0 {
-            $out = "${$out}${sep}${p}"
-        } else {
-            $out = p
-        }
-        $i = $i + 1
-    }
-    $out
-}
-
-from_utf8_lossy : List(U8) -> Str
-from_utf8_lossy = |bytes| {
-    match Str.from_utf8(bytes) {
-        Ok(s) => s
-        Err(_) => ""
-    }
-}
-
-take_bytes : Str, U64 -> Str
-take_bytes = |s, n| {
-    b = s.to_utf8()
-    end = if n < b.len() { n } else { b.len() }
-    slice_to_str(b, 0, end)
-}
-
-drop_bytes : Str, U64 -> Str
-drop_bytes = |s, n| {
-    b = s.to_utf8()
-    start = if n < b.len() { n } else { b.len() }
-    slice_to_str(b, start, b.len())
-}
-
-take_until_ascii : Str, U8 -> Try(Str, {})
-take_until_ascii = |s, ch| {
-    bytes = s.to_utf8()
-    var $i = 0.U64
-    for b in bytes {
-        if b == ch {
-            return Ok(slice_to_str(bytes, 0, $i))
-        }
-        $i = $i + 1
-    }
-    Err({})
-}
-
-drop_str_prefix : Str, Str -> Str
-drop_str_prefix = |s, prefix| {
-    if s.starts_with(prefix) {
-        drop_bytes(s, prefix.to_utf8().len())
-    } else {
-        s
-    }
-}
-
-normalize_ws : Str -> Str
-normalize_ws = |s| {
-    bytes = s.to_utf8()
-    var $out = []
-    var $sp = Bool.False
-    for b in bytes {
-        if b == 32.U8 or b == 9.U8 or b == 10.U8 or b == 13.U8 {
-            if !$sp {
-                $out = $out.append(32.U8)
-                $sp = Bool.True
-            }
-        } else {
-            $out = $out.append(b)
-            $sp = Bool.False
-        }
-    }
-    from_utf8_lossy($out).trim()
-}
-
-split_ws : Str -> List(Str)
-split_ws = |s| {
-    bytes = s.to_utf8()
-    var $acc = []
-    var $cur = []
-    for b in bytes {
-        if b == 32.U8 or b == 9.U8 {
-            if $cur.len() > 0 {
-                $acc = $acc.append(from_utf8_lossy($cur))
-                $cur = []
-            }
-        } else {
-            $cur = $cur.append(b)
-        }
-    }
-    if $cur.len() > 0 {
-        $acc = $acc.append(from_utf8_lossy($cur))
-    }
-    $acc
-}
-
-split_args : Str -> List(Str)
-split_args = |s| split_top_level(s, 44.U8)
-
-list_take_first : List(U8), U64 -> List(U8)
-list_take_first = |list, n| {
-    var $out = []
-    var $i = 0.U64
-    for x in list {
-        if $i >= n {
-            break
-        }
-        $out = $out.append(x)
-        $i = $i + 1
-    }
-    $out
 }
