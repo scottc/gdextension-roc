@@ -949,16 +949,16 @@ PubConfig : {
 # main!
 # =============================================================================
 
-main! : List(Str) => Try({}, _)
+main! : List(Str) => Try({}, [BadNumStr, EngineParseError(Str), Exit(I32), ListWasEmpty, MissingRequiredBaselineFlag(Str), MissingRequiredEnginesFlag(Str), MissingRequiredTargetsFlag(Str)])
 main! = |args| {
     cfg : PubConfig
     cfg = {
-        baseline: Args.parse_baseline_flag(args)?,
-        engines: Args.parse_engines_flag(args)?,
-        hosts: Args.parse_targets_flag(args)?,
-        optimize: Args.parse_optimize_flag(args),
+        baseline: Args.parse_baseline_flag_or_godot4_5(args), #TODO: handle error, don't early return these failures.
+        engines: Args.parse_engines_flag_or_empty(args),
+        hosts: Args.parse_targets_flag_or_auto(args),
+        optimize: Args.parse_optimize_flag_or_release_fast(args),
         publish: {
-            tag: Args.parse_tag_flag(args)
+            tag: Args.parse_tag_flag_or_autotag(args)
         },
     }
 

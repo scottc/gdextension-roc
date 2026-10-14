@@ -63,9 +63,7 @@ CpuArchOS := [
             "x64mingw" => X64mingw
             "arm64win" => Arm64win
             "arm64mingw" => Arm64mingw
-            _ => crash "Got unexpected string value, was expecting a valid CpuArchOS value."
+            _ => { crash "Got unexpected string value, was expecting a valid CpuArchOS value." }
         }
     }
-
-
 }

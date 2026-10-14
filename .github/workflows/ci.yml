@@ -11,10 +11,11 @@ on:
         description: "Baseline engine (--baseline=…)"
         type: choice
         options:
-          - godot
+          - godot4.7
           - godot4.5
-          - redot
-          - rex
+          - redot26.2
+          - rex0.0
+          - blazium0.6
         default: godot
       optimize:
         description: "Optimize (-Doptimize=…)"
@@ -31,10 +32,11 @@ on:
         options:
           - none
           - all
-          - godot
+          - godot4.7
           - godot4.5
-          - redot
-          - rex
+          - redot26.2
+          - rex0.0
+          - blazium0.6
         default: none
       cpuarchos:
         description: "CpuArch-OS targets (--targets=…; auto = host native + wasm32)"

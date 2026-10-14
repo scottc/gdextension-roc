@@ -48,11 +48,11 @@ main! = |args| {
     str_args = args.map(|a| a.display())
 
     engine : Engine
-    engine = Args.parse_engine_flag(str_args)?
+    engine = Args.parse_engine_flag_or_godot4_5(str_args)
     Stdout.line!("# Engine: ${Str.inspect(engine)}")?
 
     selected_targets : List(CpuArchOS)
-    selected_targets = Args.parse_targets_flag(str_args)?
+    selected_targets = Args.parse_targets_flag_or_auto(str_args)
 
     Stdout.line!("# Targets: ${Str.join_with(selected_targets.map(CpuArchOS.to_name), ",")}")?
 

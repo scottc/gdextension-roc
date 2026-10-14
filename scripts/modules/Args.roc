@@ -6,73 +6,74 @@ import Host exposing [Optimize]
 
 Args := {}.{
     ## --engine=godot4.5
-    parse_engine_flag : List(Str) -> Try(Engine, [MissingRequiredEngineFlag(Str)])
-    parse_engine_flag = |args| {
-        for str in args {
-            if str.starts_with("--engine=") {
-                id = str.replace_first("--engine=", "")
-                return Ok(Engine.from_name(id))
-            }
+    parse_engine_flag_or_godot4_5 : List(Str) -> Engine
+    parse_engine_flag_or_godot4_5 = |args| {
+        e : Engine
+        e = match flag_value(args, "--engine=") {
+            Some(bl) =>
+                match Engine.from_name(bl) {
+                    Ok(eg) => eg
+                    _ => Godot({ major: 4, minor: 5 })
+                }
+            None => Godot({ major: 4, minor: 5 })
         }
-        Err(MissingRequiredEngineFlag("Missing: --engine="))
+        e
     }
 
     ## --baseline=godot4.5
-    parse_baseline_flag : List(Str) -> Try(Engine, [MissingRequiredBaselineFlag(Str)])
-    parse_baseline_flag = |args| {
-        for str in args {
-            if str.starts_with("--baseline=") {
-                id = str.replace_first("--baseline=", "")
-                return Ok(Engine.from_name(id))
-            }
+    parse_baseline_flag_or_godot4_5 : List(Str) -> Engine
+    parse_baseline_flag_or_godot4_5 = |args| {
+        e : Engine
+        e = match flag_value(args, "--baseline=") {
+            Some(bl) =>
+                match Engine.from_name(bl) {
+                    Ok(eg) => eg
+                    _ => Godot({ major: 4, minor: 5 })
+                }
+            None => Godot({ major: 4, minor: 5 })
         }
-        Err(MissingRequiredBaselineFlag("Missing: --baseline="))
+        e
     }
 
     ## --engines=godot4.5,redot26.2,rex0.0
-    parse_engines_flag : List(Str) -> Try(List(Engine), [MissingRequiredEnginesFlag(Str)])
-    parse_engines_flag = |args| {
-        for str in args {
-            if str.starts_with("--engines=") {
-                ids_str = str.replace_first("--engines=", "")
-                ids = StringHelper.split_comma(ids_str)
-
+    parse_engines_flag_or_empty : List(Str) -> List(Engine)
+    parse_engines_flag_or_empty = |args| {
+        match flag_value(args, "--engines=") {
+            Some(v) => {
+                ids = StringHelper.split_comma(v)
                 var $engines = List.with_capacity(ids.len())
                 for id in ids {
-                    $engines = $engines.append(Engine.from_name(id))
+                    match Engine.from_name(id) {
+                        Ok(eg) => {
+                            $engines = $engines.append(eg)
+                        }
+                        _ => {}
+                    }
                 }
-                return Ok($engines)
+                $engines
             }
+            None => []
         }
-        Err(MissingRequiredEnginesFlag("Missing: --engines="))
     }
 
     ## Takes raw string args, parses flag: --targets=wasm32,x64musl
-    parse_targets_flag : List(Str) -> Try(List(CpuArchOS), [MissingRequiredTargetsFlag(Str)])
-    parse_targets_flag = |args| {
-        targets_key = "--targets="
-        for str in args {
-            if str.starts_with(targets_key) {
-                id = str.replace_first(targets_key, "")
-                match id {
-                    "all" => return Ok(CpuArchOS.all)
-                    "auto" => return Ok(CpuArchOS.auto)
-                    raw => {
-                        parts = StringHelper.split_comma(raw)
-                        if parts.is_empty() {
-                            return Ok(CpuArchOS.auto) # default
-                        } else {
-                            return Ok(parts.map(CpuArchOS.from_name))
-                        }
-                    }
+    parse_targets_flag_or_auto : List(Str) -> List(CpuArchOS)
+    parse_targets_flag_or_auto = |args| {
+        match flag_value(args, "--targets=") {
+            Some(raw) => {
+                parts = StringHelper.split_comma(raw)
+                if parts.is_empty() {
+                    CpuArchOS.auto
+                } else {
+                    parts.map(CpuArchOS.from_name)
                 }
             }
+            None => CpuArchOS.auto
         }
-        Err(MissingRequiredTargetsFlag("Missing: --targets="))
     }
 
-    parse_optimize_flag : List(Str) -> Optimize
-    parse_optimize_flag = |args| {
+    parse_optimize_flag_or_release_fast : List(Str) -> Optimize
+    parse_optimize_flag_or_release_fast = |args| {
         match flag_value(args, "-Doptimize=") {
             Some("Debug") => Debug
             Some("ReleaseFast") => ReleaseFast
@@ -82,8 +83,8 @@ Args := {}.{
         }
     }
 
-    parse_tag_flag : List(Str) -> [AutoTag, Tag(Str)]
-    parse_tag_flag = |args| {
+    parse_tag_flag_or_autotag : List(Str) -> [AutoTag, Tag(Str)]
+    parse_tag_flag_or_autotag = |args| {
         match flag_value(args, "--tag=") {
             Some(t) => Tag(t)
             None => AutoTag

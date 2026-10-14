@@ -11,8 +11,12 @@ app [main!] {
     pf: platform "https://github.com/scottc/roc-build/releases/download/v0.0.6-alpha/8W24oBtfDBC1pg3gJnbnLYGj8kQDPxpfnVCskvqksKcH.tar.zst",
 }
 
-import pf.Build
+import pf.Build #exposing [Cmd]
 import pf.Log
+
+import modules/Engine
+import modules/CpuArchOS
+import modules/Host #exposing [Optimise]
 
 # =============================================================================
 # Fixed smoke matrix (no CLI matrix)
@@ -28,37 +32,41 @@ PhaseResult : {
 
 ReplacePair : { find : Str, replace : Str }
 
-# Engine: godot4.5 (what is on PATH in the ci Blueprint env)
-engine_slug : Str
-engine_slug = "godot4_5"
+engine : Engine
+engine = Engine.Godot({ major: 4, minor: 5 })
 
-engine_program : Str
-engine_program = "godot4.5"
+cpu_arch_os : CpuArchOS
+cpu_arch_os = CpuArchOS.X64musl
 
-# Host: x64musl only
-host_name : Str
-host_name = "x64musl"
+# TODO: import from modules/Host.roc
+#Optimize : [Debug, ReleaseFast, ReleaseSafe, ReleaseSmall]
 
-host_zig_triple : Str
-host_zig_triple = "x86_64-linux-musl"
+optimize : [Debug, ReleaseFast, ReleaseSafe, ReleaseSmall]
+optimize = Debug
 
-host_lib_file : Str
-host_lib_file = "libhost.a"
+debug_flag = "-ODebug"
 
-optimize : Str
-optimize = "Debug"
+opt_to_str : [Debug, ReleaseFast, ReleaseSafe, ReleaseSmall] => Str
+opt_to_str = |opt| {
+    match opt {
+        Debug => "Debug"
+        ReleaseFast => "ReleaseFast"
+        ReleaseSafe => "ReleaseSafe"
+        ReleaseSmall => "ReleaseSmall"
+    }
+}
 
 dump_out : Str
-dump_out = "dump-out/${engine_slug}"
+dump_out = "dump-out/${engine.to_path_slug()}"
 
 platform_out : Str
-platform_out = "platform-out/${engine_slug}"
+platform_out = "platform-out/${engine.to_path_slug()}"
 
 glue_out : Str
-glue_out = "host/glue-out/${engine_slug}"
+glue_out = "host/glue-out/${engine.to_path_slug()}"
 
 smoke_proj : Str
-smoke_proj = "smoke-out/${engine_slug}/workspace/my_game"
+smoke_proj = "smoke-out/${engine.to_path_slug()}/workspace/my_game"
 
 glue_spec : Str
 glue_spec = "vendor/roc/nightly-2026-10-12-2664a27/ZigGlue.roc"
@@ -199,10 +207,10 @@ phase_prepare = |start_id| {
         dump_out,
         platform_out,
         "${platform_out}/targets",
-        "${platform_out}/targets/${host_name}",
+        "${platform_out}/targets/${cpu_arch_os.to_name()}",
         glue_out,
-        "smoke-out/${engine_slug}",
-        "smoke-out/${engine_slug}/workspace",
+        "smoke-out/${engine.to_path_slug()}",
+        "smoke-out/${engine.to_path_slug()}/workspace",
         smoke_proj,
     ]
     var $terminals = []
@@ -236,9 +244,9 @@ phase_dump = |start_id, prepare_ids| {
             "${dump_out}/gdextension_interface.h",
             "${dump_out}/extension_api.json",
         ],
-        program: engine_program,
+        program: engine.to_name(),
         args: ["--headless", "--dump-gdextension-interface", "--dump-extension-api"],
-        description: "dump gdextension + extension_api (${engine_slug})",
+        description: "dump gdextension + extension_api (${engine.to_name()})",
         cwd: dump_out,
         env: [],
     })
@@ -261,9 +269,9 @@ phase_glue = |start_id, prepare_ids, dump_ids| {
             "run",
             "scripts/gdextension_interface.generate.roc",
             "--",
-            "--engine=${engine_slug}",
+            "--engine=${engine.to_name()}",
         ],
-        description: "Generate gdextension_interface (${engine_slug})",
+        description: "Generate gdextension_interface (${engine.to_name()})",
         cwd: "",
         env: [],
     })
@@ -284,10 +292,10 @@ phase_glue = |start_id, prepare_ids, dump_ids| {
             "run",
             "scripts/extension_api.generate.roc",
             "--",
-            "--engine=${engine_slug}",
-            "--targets=${host_name}",
+            "--engine=${engine.to_name()}",
+            "--targets=${cpu_arch_os.to_name()}",
         ],
-        description: "Generate extension_api platform (${engine_slug})",
+        description: "Generate extension_api platform (${engine.to_name()})",
         cwd: "",
         env: [],
     })
@@ -307,7 +315,7 @@ phase_glue = |start_id, prepare_ids, dump_ids| {
             glue_out,
             "${platform_out}/main.roc",
         ],
-        description: "roc glue (${engine_slug})",
+        description: "roc glue (${engine.to_name()})",
         cwd: "",
         env: [],
     })
@@ -329,7 +337,7 @@ phase_glue = |start_id, prepare_ids, dump_ids| {
                     \\fn nativeWriteStderr_PATCHED_MARKER
             },
         ],
-        "patch glue marker (${engine_slug})",
+        "patch glue marker (${engine.to_name()})",
     )
     $cmds = $cmds.append(patch)
     patch_id = $id
@@ -355,7 +363,7 @@ phase_glue = |start_id, prepare_ids, dump_ids| {
                 "",
             ),
         ],
-        description: "note patched glue (${engine_slug})",
+        description: "note patched glue (${engine.to_name()})",
         cwd: "",
         env: [],
     })
@@ -370,7 +378,7 @@ phase_glue = |start_id, prepare_ids, dump_ids| {
         outputs: ["${glue_out}/gde_call.zig"],
         program: "cp",
         args: ["host/gde_call.template.zig", "${glue_out}/gde_call.zig"],
-        description: "cp gde_call.zig (${engine_slug})",
+        description: "cp gde_call.zig (${engine.to_name()})",
         cwd: "",
         env: [],
     })
@@ -385,7 +393,7 @@ phase_glue = |start_id, prepare_ids, dump_ids| {
         outputs: [],
         program: "zig",
         args: ["test", "${glue_out}/gdextension_interface.zig"],
-        description: "zig test gdextension_interface (${engine_slug})",
+        description: "zig test gdextension_interface (${engine.to_name()})",
         cwd: "",
         env: [],
     })
@@ -400,7 +408,7 @@ phase_glue = |start_id, prepare_ids, dump_ids| {
         outputs: [],
         program: "roc",
         args: ["check", "${platform_out}/main.roc"],
-        description: "roc check platform (${engine_slug})",
+        description: "roc check platform (${engine.to_name()})",
         cwd: "",
         env: [],
     })
@@ -417,8 +425,8 @@ phase_glue = |start_id, prepare_ids, dump_ids| {
 
 phase_host : NodeId, List(NodeId) -> PhaseResult
 phase_host = |start_id, glue_ids| {
-    out_dir = "${platform_out}/targets/${host_name}"
-    out_path = "${out_dir}/${host_lib_file}"
+    out_dir = "${platform_out}/targets/${cpu_arch_os.to_name()}"
+    out_path = "${out_dir}/${Host.to_target(cpu_arch_os).lib_file}"
 
     mk = Build.cmd({
         id: start_id,
@@ -427,7 +435,7 @@ phase_host = |start_id, glue_ids| {
         outputs: [],
         program: "mkdir",
         args: ["-p", out_dir],
-        description: "mkdir host target ${engine_slug}/${host_name}",
+        description: "mkdir host target ${engine.to_name()} ${engine.to_path_slug()}/${cpu_arch_os.to_name()}",
         cwd: "",
         env: [],
     })
@@ -442,8 +450,8 @@ phase_host = |start_id, glue_ids| {
             "build-lib",
             "host/host.zig",
             "-target",
-            host_zig_triple,
-            "-O${optimize}",
+            Host.to_target(cpu_arch_os).zig_triple,
+            debug_flag,
             "-fPIC",
             "-lc",
             "-fcompiler-rt",
@@ -452,16 +460,18 @@ phase_host = |start_id, glue_ids| {
             "-static",
             "-femit-bin=${out_path}",
         ],
-        description: "compile host ${engine_slug}/${host_name}",
+        description: "compile host ${engine.to_name()} ${engine.to_path_slug()}/${cpu_arch_os.to_name()}",
         cwd: "",
         env: [],
     })
 
-    {
+    pr : PhaseResult
+    pr = {
         cmds: [mk, compile],
         terminal_ids: [start_id + 1],
         next_id: start_id + 2,
     }
+    pr
 }
 
 phase_workspace : NodeId, List(NodeId) -> PhaseResult
@@ -476,7 +486,7 @@ phase_workspace = |start_id, host_ids| {
         outputs: [],
         program: "mkdir",
         args: ["-p", smoke_proj],
-        description: "mkdir smoke project (${engine_slug})",
+        description: "mkdir smoke project (${engine.to_name()})",
         cwd: "",
         env: [],
     })
@@ -491,7 +501,7 @@ phase_workspace = |start_id, host_ids| {
         outputs: ["${smoke_proj}/main.roc"],
         program: "cp",
         args: ["-a", "templates/ci/.", "${smoke_proj}/"],
-        description: "cp template game (${engine_slug})",
+        description: "cp template game (${engine.to_name()})",
         cwd: "",
         env: [],
     })
@@ -506,7 +516,7 @@ phase_workspace = |start_id, host_ids| {
         outputs: ["${smoke_proj}/platform/main.roc"],
         program: "cp",
         args: ["-a", "${platform_out}/.", "${smoke_proj}/platform/"],
-        description: "cp local platform into smoke (${engine_slug})",
+        description: "cp local platform into smoke (${engine.to_name()})",
         cwd: "",
         env: [],
     })
@@ -524,7 +534,7 @@ phase_workspace = |start_id, host_ids| {
                 replace: "pf: platform \"./platform/main.roc\",",
             },
         ],
-        "patch platform path (${engine_slug})",
+        "patch platform path (${engine.to_name()})",
     )
     $cmds = $cmds.append(patch)
     patch_id = $id
@@ -547,11 +557,11 @@ phase_smoke = |start_id, ws_ids| {
         args: [
             "build",
             main_roc,
-            "--target=${host_name}",
+            "--target=${cpu_arch_os.to_name()}",
             "--no-cache",
             "--output=${out_so}",
         ],
-        description: "roc build desktop smoke (${engine_slug}/${host_name})",
+        description: "roc build desktop smoke ${engine.to_name()} (${engine.to_path_slug()}/${cpu_arch_os.to_name()})",
         cwd: "",
         env: [],
     })
@@ -565,7 +575,7 @@ phase_smoke = |start_id, ws_ids| {
 
 main! : List(Str) => Try({}, [Exit(I32)])
 main! = |_args| {
-    Log.info!("CI smoke — ${engine_slug} × ${host_name} (-O${optimize})")
+    Log.info!("CI smoke — ${engine.to_name()} × ${cpu_arch_os.to_name()} (-O${opt_to_str(optimize)})")
 
     prep = phase_prepare(1)
     d = phase_dump(prep.next_id, prep.terminal_ids)

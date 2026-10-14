@@ -35,7 +35,86 @@ Host := {}.{
                 lib_file: "libhost.o.wasm",
                 mcpu: NoCpu,
             }
-            _ => crash "hfjaslhfkafaflhksdjaflhsdkjhafsdkj"
+            X64musl => {
+                name: X64musl,
+                name_str: "x64musl",
+                zig_triple: "x86_64-linux-musl",
+                kind: StaticLib,
+                lib_file: "libhost.a",
+                mcpu: NoCpu,
+            }
+            X64v1musl => {
+                name: X64v1musl,
+                name_str: "x64v1musl",
+                zig_triple: "x86_64-linux-musl",
+                kind: StaticLib,
+                lib_file: "libhost.a",
+                mcpu: Cpu("x86_64"),
+            }
+            Arm64musl => {
+                name: Arm64musl,
+                name_str: "arm64musl",
+                zig_triple: "aarch64-linux-musl",
+                kind: StaticLib,
+                lib_file: "libhost.a",
+                mcpu: NoCpu,
+            }
+            Arm64v1musl => {
+                name: Arm64v1musl,
+                name_str: "arm64v1musl",
+                zig_triple: "aarch64-linux-musl",
+                kind: StaticLib,
+                lib_file: "libhost.a",
+                mcpu: Cpu("baseline"),
+            }
+            X64mac => {
+                name: X64mac,
+                name_str: "x64mac",
+                zig_triple: "x86_64-macos",
+                kind: StaticLib,
+                lib_file: "libhost.a",
+                mcpu: NoCpu,
+            }
+            Arm64mac => {
+                name: Arm64mac,
+                name_str: "arm64mac",
+                zig_triple: "aarch64-macos",
+                kind: StaticLib,
+                lib_file: "libhost.a",
+                mcpu: NoCpu,
+            }
+            X64win => {
+                name: X64win,
+                name_str: "x64win",
+                zig_triple: "x86_64-windows",
+                kind: StaticLib,
+                lib_file: "host.lib",
+                mcpu: NoCpu,
+            }
+            X64mingw => {
+                name: X64mingw,
+                name_str: "x64mingw",
+                zig_triple: "x86_64-windows-gnu",
+                kind: StaticLib,
+                lib_file: "host.lib",
+                mcpu: NoCpu,
+            }
+            Arm64win => {
+                name: Arm64win,
+                name_str: "arm64win",
+                zig_triple: "aarch64-windows",
+                kind: StaticLib,
+                lib_file: "host.lib",
+                mcpu: NoCpu,
+            }
+            Arm64mingw => {
+                name: Arm64mingw,
+                name_str: "arm64mingw",
+                zig_triple: "aarch64-windows-gnu",
+                kind: StaticLib,
+                lib_file: "host.lib",
+                mcpu: NoCpu,
+            }
         }
     }
 
