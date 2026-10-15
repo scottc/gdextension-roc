@@ -29,7 +29,7 @@ app [main!] {
 import pf.Build exposing [Cmd, TaskId, BuildGraph]
 import pf.Log
 
-import effects/BuildCmdHelper exposing [ReplacePair, PhaseResult, PubConfig]
+import BuildCmdHelper exposing [ReplacePair, PhaseResult, PubConfig]
 
 import modules/Host exposing [Optimize, LibKind]
 import modules/CpuArchOS

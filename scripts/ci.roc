@@ -14,7 +14,7 @@ app [main!] {
 import pf.Build exposing [Cmd, TaskId]
 import pf.Log
 
-import effects/BuildCmdHelper exposing [PhaseResult, ReplacePair]
+import BuildCmdHelper exposing [PhaseResult, ReplacePair]
 
 import modules/Engine
 import modules/CpuArchOS

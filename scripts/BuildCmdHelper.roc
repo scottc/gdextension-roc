@@ -1,8 +1,9 @@
 import pf.Build exposing [Cmd, TaskId, BuildGraph]
-import ../modules/Host exposing [Optimize]
-import ../modules/Args exposing [PublishOpts]
-import ../modules/Engine
-import ../modules/CpuArchOS
+
+import modules/Host exposing [Optimize]
+import modules/Args exposing [PublishOpts]
+import modules/Engine
+import modules/CpuArchOS
 
 BuildCmdHelper := {}.{
     PhaseResult : {
@@ -613,12 +614,30 @@ BuildCmdHelper := {}.{
 
     to_publish_build_graph : PubConfig -> BuildGraph
     to_publish_build_graph = |cfg| {
-        prep = BuildCmdHelper.phase_prepare(1, cfg.engines)
+        prep = BuildCmdHelper.phase_prepare(1, cfg.baseline, cfg.engines)
         var $id = prep.next_id
         var $cmds = prep.cmds
         var $bundle_terms = []
         $zig_prior : List(TaskId)
         var $zig_prior = []
+
+        bld = BuildCmdHelper.phase_dump($id, prep.terminal_ids, cfg.baseline)
+        $cmds = List.concat($cmds, bld.cmds)
+        $id = bld.next_id
+
+        blg = BuildCmdHelper.phase_glue_engine($id, prep.terminal_ids, bld.terminal_ids, cfg.baseline, cfg.hosts)
+        $cmds = List.concat($cmds, blg.cmds)
+        $id = blg.next_id
+
+        blh = BuildCmdHelper.phase_hosts_engine($id, blg.terminal_ids, $zig_prior, cfg.baseline, cfg.hosts, cfg.optimize)
+        $cmds = List.concat($cmds, blh.cmds)
+        $id = blh.next_id
+        $zig_prior = blh.terminal_ids
+
+        blb = BuildCmdHelper.phase_bundle_engine($id, blh.terminal_ids, cfg.baseline, cfg.hosts)
+        $cmds = List.concat($cmds, blb.cmds)
+        $id = blb.next_id
+        $bundle_terms = List.concat($bundle_terms, blb.terminal_ids)
 
         for e in cfg.engines {
 
@@ -757,8 +776,8 @@ BuildCmdHelper := {}.{
     # Phases
     # =============================================================================
 
-    phase_prepare : TaskId, List(Engine) -> PhaseResult
-    phase_prepare = |start_id, engines| {
+    phase_prepare : TaskId, Engine, List(Engine) -> PhaseResult
+    phase_prepare = |start_id, baseline, engines| {
         var $id = start_id
         var $cmds = []
         var $clean_ids = []
@@ -806,6 +825,30 @@ BuildCmdHelper := {}.{
                 $terminals = $terminals.append($id)
                 $id = $id + 1
             }
+        }
+
+        bldirs = [
+            engine_dump_dir(baseline),
+            engine_platform_dir(baseline),
+            "${engine_platform_dir(baseline)}/targets",
+            engine_glue_dir(baseline),
+            engine_bundle_dir(baseline),
+        ]
+        for bld in bldirs {
+            c = Build.cmd({
+                id: $id,
+                depends_on: $clean_ids,
+                inputs: [],
+                outputs: [],
+                program: "mkdir",
+                args: ["-p", bld],
+                description: "mkdir -p ${bld}",
+                cwd: "",
+                env: [],
+            })
+            $cmds = $cmds.append(c)
+            $terminals = $terminals.append($id)
+            $id = $id + 1
         }
 
         { cmds: $cmds, terminal_ids: $terminals, next_id: $id }
