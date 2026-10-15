@@ -27,11 +27,11 @@ config = [
 	Environment(
 		"ci-env",
 		[
-			Overlays(["roc", "blazium"]),
+			Overlays(["roc"]), #rex
 			Command("roc", "rocpkgs.nightly-2026-10-13-b17d287"),
 			Tools([
 				"zig",
-				"blazium",
+				#"rex",
           		#"godotPackages_4_3.godot",
 			]),
 		],

@@ -54,7 +54,7 @@
 					(name "dev-env")
 					(value (List ((Str "roc"))))) (
 					(name "ci-env")
-					(value (List ((Str "roc") (Str "blazium"))))) (
+					(value (List ((Str "roc"))))) (
 					(name "gh-publish-env")
 					(value (List ((Str "roc") (Str "redot") (Str "blazium"))))))))))))) (
 			(name "graph")
@@ -512,7 +512,7 @@
 			(url "github:roc-lang/roc-overlay"))))
 		(overlays ((
 			(environment "ci-env")
-			(overlays ("roc" "blazium"))) (
+			(overlays ("roc"))) (
 			(environment "dev-env")
 			(overlays ("roc"))) (
 			(environment "gh-publish-env")

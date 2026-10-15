@@ -53,8 +53,9 @@ BuildCmdHelper := {}.{
     # =============================================================================
 
     ci_engine : Engine
-    ci_engine = Engine.Godot({ major: 4, minor: 5 })
+    ci_engine = Engine.Godot({ major: 4, minor: 3 })
     #ci_engine = Engine.Blazium({ major: 0, minor: 6 })
+    #ci_engine = Engine.Rex({ major: 0, minor: 0 })
 
     ci_cpu_arch_os : CpuArchOS
     ci_cpu_arch_os = CpuArchOS.X64musl
