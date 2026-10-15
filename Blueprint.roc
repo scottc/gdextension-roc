@@ -18,7 +18,7 @@ config = [
 	Shell("default", [Use("dev-env")]),
 	Environment("dev-env", [
     	Overlays(["roc"]),
-    	Command("roc", "rocpkgs.nightly-2026-10-01-a932c65"),
+    	Command("roc", "rocpkgs.nightly-2026-10-13-b17d287"),
   			Tools([
 				"zig",
                 "godotPackages_4_5.godot",
@@ -28,7 +28,7 @@ config = [
 		"ci-env",
 		[
 			Overlays(["roc"]),
-			Command("roc", "rocpkgs.nightly-2026-10-01-a932c65"),
+			Command("roc", "rocpkgs.nightly-2026-10-13-b17d287"),
 			Tools([
 				"zig",
           		"godotPackages_4_5.godot",
@@ -50,7 +50,7 @@ config = [
 		"gh-publish-env",
 		[
 			Overlays(["roc", "redot", "blazium"]),
-			Command("roc", "rocpkgs.nightly-2026-10-01-a932c65"),
+			Command("roc", "rocpkgs.nightly-2026-10-13-b17d287"),
 			Tools([
 			    "gh",
     			"zig",
