@@ -103,26 +103,11 @@
         };
       in
       {
-        packages = {
-          "rex0.0" = rex;
-          rex = rex;
-          default = rex;
-        };
-
-        apps = {
-          "rex0.0" = {
-            type = "app";
-            program = "${rex}/bin/rex";
-          };
-          default = self.apps.${system}."rex0.0";
-        };
+        packages.rex = rex;
+        packages.default = rex;
       }
     ))
     // {
-      overlays.default = final: prev: {
-        "rex0.0" =
-          self.packages.${final.stdenv.hostPlatform.system}."rex0.0"
-            or (throw "rex-nix: no rex0.0 for ${final.stdenv.hostPlatform.system}");
-      };
+      overlays.default = overlay;
     };
 }

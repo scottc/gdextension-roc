@@ -109,26 +109,16 @@
         };
       in
       {
-        packages = {
-          "redot26.2" = redot;
-          redot = redot;           # optional short alias
-          default = redot;
-        };
+        packages.default = redot;
+        packages.redot = redot;
 
-        apps = {
-          "redot26.2" = {
-            type = "app";
-            program = "${redot}/bin/redot";
-          };
-          default = self.apps.${system}."redot26.2";
+        apps.default = {
+          type = "app";
+          program = "${redot}/bin/redot";
         };
       }
     ))
     // {
-      overlays.default = final: prev: {
-        "redot26.2" =
-          self.packages.${final.stdenv.hostPlatform.system}."redot26.2"
-            or (throw "redot-nix: no redot26.2 for ${final.stdenv.hostPlatform.system}");
-      };
+      overlays.default = overlay;
     };
 }

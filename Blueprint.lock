@@ -82,9 +82,9 @@
 						(name "locked")
 						(value (Attrs ((
 							(name "lastModified")
-							(value (Int 1792007803))) (
+							(value (Int 1792038346))) (
 							(name "narHash")
-							(value (Str "sha256-TlGJzPzEPEeaKpsfTqlrbzAAEmWhzRImm9nucIUlhHo="))) (
+							(value (Str "sha256-05PzMH2DfDUgAugQ7uHmYQEN5anlqKz6Q1Sasy9jllU="))) (
 							(name "type")
 							(value (Str "path"))) (
 							(name "path")
@@ -346,9 +346,9 @@
 						(name "locked")
 						(value (Attrs ((
 							(name "lastModified")
-							(value (Int 1792007840))) (
+							(value (Int 1792038368))) (
 							(name "narHash")
-							(value (Str "sha256-Shab8ucGurlVCwOiX/YxyXRk0Er3OubAfY0IOlack98="))) (
+							(value (Str "sha256-KKCkKYE70RZWSAS6WhTKbFbudacK0iIauLxyQC32FgM="))) (
 							(name "type")
 							(value (Str "path"))) (
 							(name "path")
@@ -370,9 +370,9 @@
 						(name "locked")
 						(value (Attrs ((
 							(name "lastModified")
-							(value (Int 1792007840))) (
+							(value (Int 1792038388))) (
 							(name "narHash")
-							(value (Str "sha256-S87fW4Yj1pzuvcgUc0tss/1+FvRpBH8X1H3s/OkGBzw="))) (
+							(value (Str "sha256-gASt3aPHg2M17aC+fgbFwnb+Qt8lGD870NpnX86FKqw="))) (
 							(name "type")
 							(value (Str "path"))) (
 							(name "path")
@@ -531,17 +531,17 @@
 		(provider "nix")
 		(ref "github:roc-lang/roc-overlay")
 		(rev "2883daa3ca02b87a10e194375ae01e2ef5e22d8d")) (
-		(digest "sha256:794ce2f128a635a07ffb531a40d7dbb41498f9fe72679eca3c04071d37120ff0")
+		(digest "sha256:d77f92568655a439fe584109ef18fae6eafc2884087956e001765820ce0d8483")
 		(name "redot")
 		(provider "nix")
 		(ref "path:flakes/redot-nix")
 		(rev "")) (
-		(digest "sha256:f1bf29bdc57a3d8b3c67d5aedefcc92ad98efccede31fac29106f3f214e5c293")
+		(digest "sha256:1f0cb986c5e096000e760e4feda21ddce62053cb43f28b78a2be23cf3c9c0fca")
 		(name "rex")
 		(provider "nix")
 		(ref "path:flakes/rex-nix")
 		(rev "")) (
-		(digest "sha256:d63eb989d301e6801f044697dc417930ff6c5d6d7bfdc52e2bd9020101320dec")
+		(digest "sha256:d0ffcd95f676c88dd1d9ea84f7ec1b828858c384d454dface5f522f30dce993b")
 		(name "blazium")
 		(provider "nix")
 		(ref "path:flakes/blazium-nix")
