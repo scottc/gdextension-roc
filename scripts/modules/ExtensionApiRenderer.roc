@@ -33,29 +33,33 @@ ExtensionApiRenderer := {}.{
         \\import engine/math/Vector3
         \\import GodotRoc
         \\
-        \\# hard coded for now, detect avaliable arch later...
-        \\CpuArch : [X64musl, Wasm32]
-        \\
-        \\# hard coded for now, detect avaliable engines later... TODO: nest api call avalibility behind tag union
-        \\EngineApi : [
-        \\    Godot4_5(Str),
-        \\    Godot4_7(Str),
-        \\    Redot26_2(Str),
-        \\    Blazium0_6(Str),
-        \\    #Rex0_0(Str),
-        \\]
         \\
         \\## A generic godot-4.x-like game engine interface, with multi-engine & multi-version support.
         \\Engine := [].{
-        \\    current_engine! : () => EngineApi
+        \\
+        \\# hard coded for now, detect avaliable comptime arch & engine later...
+        \\CpuArch : [X64musl, Wasm32]
+        \\Godot4_7Module :: { godot4_7_instance_field: U32 }.{
+        \\    godot4_7_static_field : U32
+        \\    godot4_7_static_field = 0
+        \\}
+        \\Redot26_2Module :: { godot26_2_instance_field: U32 }.{
+        \\    godot26_2_static_field : U32
+        \\    godot26_2_static_field = 0
+        \\}
+        \\Blazium0_6Module :: { blazium0_6_instance_field: U32 }.{
+        \\    blazium0_6_static_field : U32
+        \\    blazium0_6_static_field = 0
+        \\}
+        \\EngineModuleTagUnion : [Godot4_7Tag(Godot4_7Module), Redot26_2Tag(Redot26_2Module), Blazium0_6Tag(Blazium0_6Module)]
+        \\
+        \\    current_engine! : () => EngineModuleTagUnion
         \\    current_engine! = || {
-        \\        engine : EngineApi
+        \\        engine : EngineModuleTagUnion
         \\        engine = match Host.current_engine!() {
-        \\            0 => Godot4_5("sdfd")
-        \\            1 => Godot4_7("hfghf")
-        \\            2 => Redot26_2("hgghfg")
-        \\            3 => Blazium0_6("hgghfg")
-        \\            #4 => Rex0_0("hgghfg")
+        \\            0 => Godot4_7Tag({ godot4_7_instance_field: 0 })
+        \\            1 => Redot26_2Tag({ godot26_2_instance_field: 0 })
+        \\            2 => Blazium0_6Tag({ blazium0_6_static_field: 0 })
         \\            _ => crash "Host.current_engine!() got unexpected tag union value."
         \\        }
         \\        engine
