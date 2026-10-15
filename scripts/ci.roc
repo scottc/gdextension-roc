@@ -16,9 +16,6 @@ import pf.Log
 
 import BuildCmdHelper exposing [PhaseResult, ReplacePair]
 
-import modules/Engine
-import modules/CpuArchOS
-import modules/Host #exposing [Optimise]
 
 
 # =============================================================================
@@ -27,16 +24,16 @@ import modules/Host #exposing [Optimise]
 
 main! : List(Str) => Try({}, [Exit(I32)])
 main! = |_args| {
-    Log.info!("CI smoke — ${BuildCmdHelper.ci_engine.to_name()} × ${BuildCmdHelper.ci_cpu_arch_os.to_name()} (-O${BuildCmdHelper.opt_to_str(BuildCmdHelper.ci_optimize)})")
+    #Log.info!("CI smoke — ${BuildCmdHelper.ci_engine.to_name()} × ${BuildCmdHelper.ci_cpu_arch_os.to_name()} (-O${BuildCmdHelper.opt_to_str(BuildCmdHelper.ci_optimize)})")
 
     graph = BuildCmdHelper.to_ci_build_graph()
 
     match Build.run!(graph) {
         Ok({}) => {
             Log.info!("smoke ok")
-            Log.info!("  platform: ${BuildCmdHelper.ci_platform_out}")
-            Log.info!("  app:      ${BuildCmdHelper.ci_smoke_proj}")
-            Log.info!("  so:       ${BuildCmdHelper.ci_smoke_proj}/my_game.so")
+            # Log.info!("  platform: ${BuildCmdHelper.ci_platform_out}")
+            # Log.info!("  app:      ${BuildCmdHelper.ci_smoke_proj}")
+            # Log.info!("  so:       ${BuildCmdHelper.ci_smoke_proj}/my_game.so")
             Ok({})
         }
         Err(BuildFailed(msg)) => {

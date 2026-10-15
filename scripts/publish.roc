@@ -31,11 +31,13 @@ import pf.Log
 
 import BuildCmdHelper exposing [ReplacePair, PhaseResult, PubConfig]
 
-import modules/Host exposing [Optimize, LibKind]
-import modules/CpuArchOS
-import modules/Engine
 import modules/Args exposing [PublishOpts]
-import modules/Host exposing [HostTarget]
+
+
+# import modules/Host exposing [Optimize, LibKind]
+# import modules/CpuArchOS
+# import modules/Engine
+# import modules/Host exposing [HostTarget]
 
 # =============================================================================
 # main!
@@ -64,7 +66,7 @@ main! = |args| {
     for h in cfg.hosts {
         Log.info!("  - ${h.to_name()}")
     }
-    Log.info!("--optimize=${Host.optimize_str(cfg.optimize)}")
+    Log.info!("--optimize=${Str.inspect(cfg.optimize)}")
     Log.info!("--tag=${Str.inspect(cfg.publish.tag)}")
 
     #Log.info!("engine=${e.to_path_slug()}")
