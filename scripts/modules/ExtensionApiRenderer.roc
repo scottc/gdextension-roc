@@ -1,7 +1,7 @@
 import ModMap
 import CpuArchOS
 import ExtensionApi exposing [
-    ExtensionApi,
+    #ExtensionApi,
     MethodDef,
     UtilityFunction,
     Singleton,

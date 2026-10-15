@@ -13,7 +13,7 @@
 ##   godot | godot4_5 | redot | rex
 
 app [main!] {
-    pf: platform "https://github.com/roc-lang/basic-cli/releases/download/0.23.0/GNN5tt2gKdX4dhawg4915C4YB193woHFdcCkz31fhGxv.tar.zst"
+    pf: platform "https://github.com/roc-lang/basic-cli/releases/download/0.25.0/CZsY7tYZwR3rj9kYbpaCfxki2yVAaRL8bBwMLvB2xkbA.tar.zst"
 }
 
 import pf.Path
@@ -31,7 +31,7 @@ import modules/ModMap
 import modules/CpuArchOS
 import modules/ExtensionApiRenderer
 import modules/ExtensionApi exposing [
-    ExtensionApi,
+    #ExtensionApi,
     MethodDef,
     UtilityFunction,
     Singleton,
