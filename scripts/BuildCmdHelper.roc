@@ -56,7 +56,7 @@ BuildCmdHelper := {}.{
     ci_engine = Engine.Godot({ major: 4, minor: 5 })
 
     ci_cpu_arch_os : CpuArchOS
-    ci_cpu_arch_os = CpuArchOS.Wasm32
+    ci_cpu_arch_os = CpuArchOS.X64musl
 
     # TODO: import from modules/Host.roc
     #Optimize : [Debug, ReleaseFast, ReleaseSafe, ReleaseSmall]
@@ -566,7 +566,7 @@ BuildCmdHelper := {}.{
     ci_phase_smoke : TaskId, List(TaskId) -> PhaseResult
     ci_phase_smoke = |start_id, ws_ids| {
         main_roc = "${ci_smoke_proj}/main.roc"
-        out_so = "${ci_smoke_proj}/my_game.a"
+        out_so = "${ci_smoke_proj}/my_game.so"
 
         desk = Build.cmd({
             id: start_id,
