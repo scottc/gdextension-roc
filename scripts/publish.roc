@@ -246,9 +246,9 @@ phase_dump = |start_id, prepare_ids, eng| {
             "${dump_dir}/gdextension_interface.h",
             "${dump_dir}/extension_api.json",
         ],
-        program: eng.to_name(),
+        program: eng.to_cli_name(),
         args: ["--headless", "--dump-gdextension-interface", "--dump-extension-api"],
-        description: "dump (${eng.to_path_slug()})",
+        description: "dump (${eng.to_cli_name()} ${eng.to_path_slug()})",
         cwd: dump_dir,
         env: [],
     })

@@ -34,6 +34,24 @@ Engine := [
         }
     }
 
+    expect Engine.Godot({ major: 4, minor: 7 }).to_cli_name() == "godot"
+    expect Engine.Godot({ major: 4, minor: 5 }).to_cli_name() == "godot4.5"
+    expect Engine.Redot({ major: 26, minor: 2 }).to_cli_name() == "redot"
+    expect Engine.Rex({ major: 0, minor: 0 }).to_cli_name() == "rex"
+    expect Engine.Blazium({ major: 0, minor: 6 }).to_cli_name() == "blazium"
+    to_cli_name : Engine -> Str
+    to_cli_name = |engine| {
+        match engine {
+            Godot(version) => match version {
+                { major: 4, minor: 5 } => "godot4.5"
+                _ => "godot"
+            }
+            Redot(_version) => "redot"
+            Rex(_version) => "rex"
+            Blazium(_version) => "blazium"
+        }
+    }
+
     expect match Engine.from_name("godot4.5") {
         Ok(Godot({ major: 4, minor: 5 })) => True
         _ => False

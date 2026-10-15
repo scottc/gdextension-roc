@@ -55,7 +55,7 @@ config = [
 			    "gh",
     			"zig",
           		"godotPackages_4_5.godot", # sane baseline
-                "godotPackages_4_7.godot", # latest godot
+                "godot", # latest godot
                 "redot", # latest redot
           		"blazium", # latest blazium
                 #"godotPackages_4_3.godot", # oldest godot for max compatibility...
