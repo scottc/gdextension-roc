@@ -1,6 +1,6 @@
 # [![Godot-Roc](brand/logo-stroke.plain.svg)](https://github.com/scottc/godot-roc)
 
-GDExtension Roc language bindings generator for Godot Game Engine, Redot Game Engine, Blazium Game Engine & Draconic Game Engine.
+GDExtension Roc language bindings generator for Godot Game Engine, Redot Game Engine & Blazium Game Engine.
 
 > [!NOTE]   
 > For **game development** with godot-roc see our [Getting Started Example](https://github.com/scottc/survivepg).
@@ -9,7 +9,7 @@ GDExtension Roc language bindings generator for Godot Game Engine, Redot Game En
 
 ## About
 
-Godot-Roc lets you write game logic in [Roc](https://roc-lang.org/), "A [fast](https://roc-lang.org/fast), [friendly](https://roc-lang.org/friendly), [functional](https://roc-lang.org/functional) language". While [Godot Engine](https://godotengine.org/), [Redot Engine](https://www.redotengine.org/), [Blazium Engine](https://blazium.app/) or [Draconic Engine](https://github.com/Redot-Engine/DraconicEngine) handles scenes, rendering, and tooling.
+Godot-Roc lets you write game logic in [Roc](https://roc-lang.org/), "A [fast](https://roc-lang.org/fast), [friendly](https://roc-lang.org/friendly), [functional](https://roc-lang.org/functional) language". While [Godot Engine](https://godotengine.org/), [Redot Engine](https://www.redotengine.org/) or [Blazium Engine](https://blazium.app/) handles scenes, rendering, and tooling.
 
 game engine/s <-> zig host runtime <-> roc platform APIs <-> game development experience
 
@@ -31,8 +31,8 @@ The binding generator will allow for multi-engine & multi-version projects, whic
 
 | Area | Status | Notes |
 |------|--------|-------|
-| **Engine support** | Partial | Godot 4.x primary. Multi-engine tags exist (`Godot4_7`, `Godot4_5`, `Redot26`) but runtime/compile selection is still mostly hardcoded. |
-| **Engine version** | Godot 4.7 (header-driven) | `EngineInfo` is generated from the dumped `extension_api.json` header (`version_major/minor/patch` + full name). Platform identity currently fixed as `Godot4_7`. |
+| **Engine support** | Partial | Godot 4.x primary. Multi-engine tags exist (`Godot4.7`, `Godot4.3`, `Redot26.2`, `Blazium0.6`) but runtime/compile selection is still partially hardcoded. |
+| **Engine version** | Godot 4.7 (header-driven) | `EngineInfo` is generated from the dumped `extension_api.json` header (`version_major/minor/patch` + full name). Platform identity currently fixed as `Godot4.7`. |
 | **Roc API availability** | High (surface) | Full generation of: Host signatures, GlobalConstants, GlobalEnums, BuiltinClassSizes/MemberOffsets, NativeStructures, UtilityFunctions, math value types, builtin classes, Object classes, singletons, and platform `main.roc`. |
 | **Zig stubs** | Yes (non-simple) | Methods / utility functions that are **vararg** or use non-wireable types fall back to stub bodies (`return 0` / `zeroes` / `undefined`). |
 | **Functioning Zig implementations** | Partial (simple path) | Live for **simple** signatures: scalars (`bool`/`int`/`float`/`double`/`void`), `String`/`StringName`/`NodePath`, and math struct builtins. Uses `callBuiltin` / `callInstance` / `callUtility` + singleton lookup. |
@@ -205,7 +205,7 @@ blueprint shell
 
 # nix run github:lukewilliamboswell/roc-blueprint/0.5.0 -- run ci -- \
 blueprint run ci \
---baseline=godot4_5 \
+--baseline=godot4.3 \
 --engines=godot-stable,redot-stable \
 --targets=x64musl,wasm32 \
 --tests=all \

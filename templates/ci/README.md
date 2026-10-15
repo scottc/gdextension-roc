@@ -8,7 +8,7 @@ Project [templates.zip](https://github.com/scottc/godot-roc/releases/download/0.
 
 ## Install Requirements
 
-* `godot-4.5.1` or newer; `godot-4.7.2`, `godot-4.5.1`, `rex-0.0.1`.
+* `godot4.3` or newer; `godot4.7`, `redot26.2`, `blazium0.6`.
 * `roc` [Install](https://roc-lang.org/install) (Pinned Version: [nightly-2026-09-27-a3ce7f1](https://github.com/roc-lang/nightlies/releases#release-nightly-2026-09-27-a3ce7f1))
 * `linux-x86_64` only (Windows, MacOS & Web support coming soon)
 
@@ -75,7 +75,7 @@ cat roc.gdextension
 ## Upgrade Platform
 
 1) Make a backup of your game & tools.
-2) Update your game engine to your preferred version of choice; `godot`, `redot`, `rex`. And ensure compatability.
+2) Update your game engine to your preferred version of choice; `godot`, `redot`, `blazium`. And ensure compatability.
 3) Update your `roc` compiler to your preferred version of choice. And ensure compatibility.
 4) Goto `godot-roc` releases page.
 5) Find the version you want.

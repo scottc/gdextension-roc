@@ -13,7 +13,7 @@ config = [
 	Name("gdextension-roc-platform-generator"),
 	Overlay("roc", "github:roc-lang/roc-overlay"),
 	Overlay("redot", "path:./flakes/redot-nix"),
-	Overlay("rex", "path:./flakes/rex-nix"),
+	#Overlay("rex", "path:./flakes/rex-nix"),
 	Overlay("blazium", "path:./flakes/blazium-nix"),
 	Shell("default", [Use("ci-env")]),
 	Environment("dev-env", [

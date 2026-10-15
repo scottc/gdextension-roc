@@ -42,7 +42,7 @@ ExtensionApiRenderer := {}.{
         \\    Godot4_7(Str),
         \\    Redot26_2(Str),
         \\    Blazium0_6(Str),
-        \\    Rex0_0(Str),
+        \\    #Rex0_0(Str),
         \\]
         \\
         \\## A generic godot-4.x-like game engine interface, with multi-engine & multi-version support.
@@ -55,7 +55,7 @@ ExtensionApiRenderer := {}.{
         \\            1 => Godot4_7("hfghf")
         \\            2 => Redot26_2("hgghfg")
         \\            3 => Blazium0_6("hgghfg")
-        \\            4 => Rex0_0("hgghfg")
+        \\            #4 => Rex0_0("hgghfg")
         \\            _ => crash "Host.current_engine!() got unexpected tag union value."
         \\        }
         \\        engine

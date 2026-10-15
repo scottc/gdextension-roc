@@ -14,8 +14,8 @@ on:
           - godot4.3
           - godot4.7
           - redot26.2
-          - rex0.0
           - blazium0.6
+          #- rex0.0
         default: godot4.3
       optimize:
         description: "Optimize (-Doptimize=…)"
@@ -35,8 +35,8 @@ on:
           - godot4.3
           - godot4.7
           - redot26.2
-          - rex0.0
           - blazium0.6
+          #- rex0.0
         default: none
       cpuarchos:
         description: "CpuArch-OS targets (--targets=…; auto = host native + wasm32)"
