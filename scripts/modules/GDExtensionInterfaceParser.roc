@@ -172,15 +172,80 @@ GDExtensionInterfaceParser := {
             if p.is_empty() {
                 {}
             } else {
-                match parse_one_param(p) {
-                    Ok({ name, type_str }) if !name.is_empty() => {
-                        $out = $out.append({ name: name, type_str: type_str })
+                match parse_one_struct_field(p) {
+                    Ok(field) if !field.name.is_empty() => {
+                        $out = $out.append(field)
                     }
                     _ => {}
                 }
             }
         }
         $out
+    }
+
+    ## Struct fields are either:
+    ##   Type name
+    ##   Type *name / Type* name
+    ##   ReturnType (*name)(params)     ← function pointer
+    parse_one_struct_field : Str -> Try(StructField, [ParseErr(Str)])
+    parse_one_struct_field = |raw| {
+        p = raw.trim()
+        if p.is_empty() {
+            Err(ParseErr("empty struct field"))
+        } else if StringHelper.contains_str(p, "(*") {
+            parse_struct_func_ptr_field(p)
+        } else {
+            match parse_one_param(p) {
+                Ok({ name, type_str }) => Ok({ name: name, type_str: type_str })
+                Err(e) => Err(e)
+            }
+        }
+    }
+
+    ## C:  void (*initialize)(void *userdata, GDExtensionInitializationLevel p_level)
+    ## → name = "initialize"
+    ## → type_str encoded so the renderer can rebuild a Zig fn-ptr type:
+    ##      "void (*)(void *userdata, GDExtensionInitializationLevel p_level)"
+    parse_struct_func_ptr_field : Str -> Try(StructField, [ParseErr(Str)])
+    parse_struct_func_ptr_field = |raw| {
+        bytes = raw.to_utf8()
+        match StringHelper.find_from(bytes, 0, "(*".to_utf8()) {
+            Err({}) => Err(ParseErr("struct fn-ptr: missing (*"))
+            Ok(idx) => {
+                ret_raw = StringHelper.take_bytes(raw, idx).trim()
+                after_star = StringHelper.drop_bytes(raw, idx + 2)
+                match StringHelper.take_until_ascii(after_star, ')') {
+                    Err({}) => Err(ParseErr("struct fn-ptr: missing ) after field name"))
+                    Ok(field_name) => {
+                        after_name = StringHelper.drop_str_prefix(after_star, field_name).trim()
+                        if !after_name.starts_with(")") {
+                            return Err(ParseErr("struct fn-ptr: expected ) after field name"))
+                        }
+                        after_rparen = after_name.drop_prefix(")").trim()
+                        if !after_rparen.starts_with("(") {
+                            return Err(ParseErr("struct fn-ptr: expected ( args"))
+                        }
+                        args_body = after_rparen.drop_prefix("(").trim()
+                        args_inner =
+                            match StringHelper.take_until_ascii(args_body, ')') {
+                                Ok(s) => s
+                                Err({}) => args_body
+                            }
+                        name = field_name.trim()
+                        if name.is_empty() {
+                            Err(ParseErr("struct fn-ptr: empty field name"))
+                        } else {
+                            # Anonymous function-pointer type (name already extracted).
+                            # Renderer detects "(*)" and converts via fn_ptr helpers.
+                            ret = StringHelper.normalize_ws(ret_raw)
+                            args = StringHelper.normalize_ws(args_inner)
+                            type_str = "${ret} (*)(${args})"
+                            Ok({ name: name, type_str: type_str })
+                        }
+                    }
+                }
+            }
+        }
     }
 
     parse_func_ptr_typedef : Str -> Try(TypeDefInfo, [ParseErr(Str)])

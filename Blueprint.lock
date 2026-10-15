@@ -54,7 +54,7 @@
 					(name "dev-env")
 					(value (List ((Str "roc"))))) (
 					(name "ci-env")
-					(value (List ((Str "roc"))))) (
+					(value (List ((Str "roc") (Str "blazium"))))) (
 					(name "gh-publish-env")
 					(value (List ((Str "roc") (Str "redot") (Str "blazium"))))))))))))) (
 			(name "graph")
@@ -94,15 +94,15 @@
 						(name "locked")
 						(value (Attrs ((
 							(name "lastModified")
-							(value (Int 1791734076))) (
+							(value (Int 1791956154))) (
 							(name "narHash")
-							(value (Str "sha256-i5qk1kLiit98rRbh1AXmWBNT9QXC/y4l5Wk/u5EdpDQ="))) (
+							(value (Str "sha256-jBYGPi4udQ9uo4KQp9m2J0546nJVQitG15gvZSaVVAs="))) (
 							(name "owner")
 							(value (Str "NixOS"))) (
 							(name "repo")
 							(value (Str "nixpkgs"))) (
 							(name "rev")
-							(value (Str "7fd4004d0511991fff3a0524856a9be09e28c5f0"))) (
+							(value (Str "55bfb4d7437bd4e09ab7cba58a43bd68eb310044"))) (
 							(name "type")
 							(value (Str "github"))))))) (
 						(name "original")
@@ -512,7 +512,7 @@
 			(url "github:roc-lang/roc-overlay"))))
 		(overlays ((
 			(environment "ci-env")
-			(overlays ("roc"))) (
+			(overlays ("roc" "blazium"))) (
 			(environment "dev-env")
 			(overlays ("roc"))) (
 			(environment "gh-publish-env")
@@ -521,11 +521,11 @@
 			(name "default")
 			(provider Auto))))))
 	(sources ((
-		(digest "sha256:8b9aa4d642e28adf7cad16e1d405e6581353f505c2ff2e25e5693fbb911da434")
+		(digest "sha256:8c16063e2e2e750f6ea38290a7d9b6274e78ea7255422b46d7982f652695540b")
 		(name "default")
 		(provider "nix")
 		(ref "github:NixOS/nixpkgs/nixos-unstable")
-		(rev "7fd4004d0511991fff3a0524856a9be09e28c5f0")) (
+		(rev "55bfb4d7437bd4e09ab7cba58a43bd68eb310044")) (
 		(digest "sha256:5a8acebfc4a4a087f60b41d73d2bef402b04ca0491fbd74370f334bf49b06f79")
 		(name "roc")
 		(provider "nix")

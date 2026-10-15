@@ -186,22 +186,136 @@ GDExtensionInterfaceRenderer := {
         var $parts = ["pub const ${name} = extern struct {"]
         for f in fields {
             field_name = escape_zig_ident(f.name)
-            $parts = $parts.append("    ${field_name}: ${zig_type(f.type_str)},")
+            ty = zig_struct_field_type(f.type_str)
+            $parts = $parts.append("    ${field_name}: ${ty},")
         }
         $parts = $parts.append("};")
         with_doc(c, StringHelper.join_with($parts, "\n"))
     }
 
+    ## Struct fields: C function pointers are always nullable.
+    zig_struct_field_type : Str -> Str
+    zig_struct_field_type = |raw| {
+        t = StringHelper.normalize_ws(raw).trim()
+        if StringHelper.contains_str(t, "(*)") {
+            fn_ptr_value_type_str_from_decl(t)
+        } else if is_fn_ptr_typedef_name(t) {
+            "?${t}"
+        } else {
+            zig_type(t)
+        }
+    }
+
+    ## Like zig_fn_ptr_type but never wraps an extra `?` (used when caller adds `?`).
+    zig_fn_ptr_type_bare : Str -> Str
+    zig_fn_ptr_type_bare = |decl| {
+        match StringHelper.find_str(decl, "(*)") {
+            Err({}) => decl
+            Ok(idx) => {
+                ret_raw = StringHelper.take_bytes(decl, idx).trim()
+                after = StringHelper.drop_bytes(decl, idx + 3).trim()
+                args_inner =
+                    if after.starts_with("(") {
+                        body = after.drop_prefix("(").trim()
+                        match StringHelper.take_until_ascii(body, ')') {
+                            Ok(s) => s
+                            Err({}) => body
+                        }
+                    } else {
+                        ""
+                    }
+                params = GDExtensionInterfaceParser.parse_param_list(args_inner)
+                # Use zig_type for return here (not zig_return_type) to avoid double-`?`
+                ret = if ret_raw.is_empty() or ret_raw == "void" {
+                    "void"
+                } else if is_fn_ptr_typedef_name(ret_raw) {
+                    "?${ret_raw}"
+                } else {
+                    zig_type(ret_raw)
+                }
+                params_zig = format_fn_params(params)
+                "*const fn (${params_zig}) callconv(.c) ${ret}"
+            }
+        }
+    }
+
+    fn_ptr_value_type_str_from_decl : Str -> Str
+    fn_ptr_value_type_str_from_decl = |decl| {
+        "?${zig_fn_ptr_type_bare(decl)}"
+    }
+
     render_func_ptr_type : Str, Str, List(ParamInfo), CommentInfo -> Str
     render_func_ptr_type = |name, return_type, parameters, c| {
+        # Typedef itself is non-optional *const fn; callers use ?Name when needed.
         with_doc(c, "pub const ${name} = ${fn_ptr_type_str(return_type, parameters)};")
     }
 
+    ## Bare fn-ptr type (for `pub const Foo = …`).
     fn_ptr_type_str : Str, List(ParamInfo) -> Str
     fn_ptr_type_str = |return_type, parameters| {
-        ret = zig_type(return_type)
+        ret = zig_return_type(return_type)
         params_zig = format_fn_params(parameters)
         "*const fn (${params_zig}) callconv(.c) ${ret}"
+    }
+
+    ## Nullable fn-ptr value (struct fields, optional callbacks).
+    fn_ptr_value_type_str : Str, List(ParamInfo) -> Str
+    fn_ptr_value_type_str = |return_type, parameters| {
+        "?${fn_ptr_type_str(return_type, parameters)}"
+    }
+
+    ## Return type of a function: if it is itself a fn-ptr typedef / (*), make it optional.
+    zig_return_type : Str -> Str
+    zig_return_type = |raw| {
+        t = StringHelper.normalize_ws(raw).trim()
+        if t.is_empty() or t == "void" {
+            "void"
+        } else if StringHelper.contains_str(t, "(*)") {
+            # Returning an anonymous fn-ptr → optional
+            "?${zig_fn_ptr_type_bare(t)}"
+        } else if is_fn_ptr_typedef_name(t) {
+            # e.g. GDExtensionClassCallVirtual → ?GDExtensionClassCallVirtual
+            "?${t}"
+        } else {
+            zig_type(t)
+        }
+    }
+
+    ## Heuristic: Godot names almost all callback typedefs this way.
+    ## Adjust if you keep an explicit set of FuncPtr names from the parse pass.
+    is_fn_ptr_typedef_name : Str -> Bool
+    is_fn_ptr_typedef_name = |n| {
+        n.ends_with("Callback")
+            or n.ends_with("Func")
+            or n.ends_with("Function")
+            or n.ends_with("OperatorEvaluator")
+            or n.ends_with("CallVirtual")
+            or n.ends_with("GetVirtual")
+            or n.ends_with("GetVirtual2")
+            or n.ends_with("GetVirtualCallData")
+            or n.ends_with("CallVirtualWithData")
+            or n.ends_with("CreateInstance")
+            or n.ends_with("CreateInstance2")
+            or n.ends_with("CreateInstance3")
+            or n.ends_with("FreeInstance")
+            or n.ends_with("RecreateInstance")
+            or n.ends_with("GetProcAddress")
+            or n.starts_with("GDExtensionClass") and (
+                n.ends_with("Set")
+                or n.ends_with("Get")
+                or n.ends_with("Notification")
+                or n.ends_with("Notification2")
+                or n.ends_with("ToString")
+                or n.ends_with("Reference")
+                or n.ends_with("Unreference")
+                or n.ends_with("GetPropertyList")
+                or n.ends_with("FreePropertyList")
+                or n.ends_with("FreePropertyList2")
+                or n.ends_with("PropertyCanRevert")
+                or n.ends_with("PropertyGetRevert")
+                or n.ends_with("ValidateProperty")
+                or n.ends_with("GetRID")
+            )
     }
 
     format_fn_params : List(ParamInfo) -> Str
@@ -271,15 +385,44 @@ GDExtensionInterfaceRenderer := {
     # C → Zig types
     # ---------------------------------------------------------------------------
 
+    ## Public zig_type: anonymous (*) still becomes a nullable value type when used alone.
     zig_type : Str -> Str
     zig_type = |raw| {
         t = StringHelper.normalize_ws(raw).trim()
         if t.is_empty() or t == "void" {
             "void"
+        } else if StringHelper.contains_str(t, "(*)") {
+            # Standalone C fn-ptr type string → nullable value
+            fn_ptr_value_type_str_from_decl(t)
         } else {
             { base, stars, is_const } = split_c_type(t)
             mapped = map_base_type(base)
             apply_pointers(mapped, stars, is_const)
+        }
+    }
+
+    ## "void (*)(void *userdata, GDExtensionInitializationLevel p_level)"
+    ## → "*const fn (?*anyopaque, GDExtensionInitializationLevel) callconv(.c) void"
+    zig_fn_ptr_type : Str -> Str
+    zig_fn_ptr_type = |decl| {
+        match StringHelper.find_str(decl, "(*)") {
+            Err({}) => decl
+            Ok(idx) => {
+                ret_raw = StringHelper.take_bytes(decl, idx).trim()
+                after = StringHelper.drop_bytes(decl, idx + 3).trim()  # skip "(*)"
+                args_inner =
+                    if after.starts_with("(") {
+                        body = after.drop_prefix("(").trim()
+                        match StringHelper.take_until_ascii(body, ')') {
+                            Ok(s) => s
+                            Err({}) => body
+                        }
+                    } else {
+                        ""
+                    }
+                params = GDExtensionInterfaceParser.parse_param_list(args_inner)
+                fn_ptr_type_str(ret_raw, params)
+            }
         }
     }
 

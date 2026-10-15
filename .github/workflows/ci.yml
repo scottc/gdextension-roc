@@ -11,12 +11,12 @@ on:
         description: "Baseline engine (--baseline=…)"
         type: choice
         options:
+          - godot4.3
           - godot4.7
-          - godot4.5
           - redot26.2
           - rex0.0
           - blazium0.6
-        default: godot
+        default: godot4.3
       optimize:
         description: "Optimize (-Doptimize=…)"
         type: choice
@@ -32,8 +32,8 @@ on:
         options:
           - none
           - all
+          - godot4.3
           - godot4.7
-          - godot4.5
           - redot26.2
           - rex0.0
           - blazium0.6
@@ -111,7 +111,7 @@ jobs:
 
           if [ "${{ github.event_name }}" = "push" ]; then
             # master: baseline only unless you widen this later
-            BASELINE="godot"
+            BASELINE="godot4.3"
             ENGINES="none"
             TARGETS="auto"
             OPTIMIZE="Debug"
@@ -127,7 +127,7 @@ jobs:
           fi
 
           # Guard empties
-          BASELINE="${BASELINE:-godot}"
+          BASELINE="${BASELINE:-godot4.3}"
           ENGINES="${ENGINES:-none}"
           TARGETS="${TARGETS:-auto}"
           OPTIMIZE="${OPTIMIZE:-Debug}"

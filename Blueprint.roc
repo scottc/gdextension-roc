@@ -15,23 +15,24 @@ config = [
 	Overlay("redot", "path:./flakes/redot-nix"),
 	Overlay("rex", "path:./flakes/rex-nix"),
 	Overlay("blazium", "path:./flakes/blazium-nix"),
-	Shell("default", [Use("dev-env")]),
+	Shell("default", [Use("ci-env")]),
 	Environment("dev-env", [
     	Overlays(["roc"]),
     	Command("roc", "rocpkgs.nightly-2026-10-13-b17d287"),
   			Tools([
 				"zig",
-                "godotPackages_4_5.godot",
+                "godotPackages_4_3.godot",
 			]),
 	]),
 	Environment(
 		"ci-env",
 		[
-			Overlays(["roc"]),
+			Overlays(["roc", "blazium"]),
 			Command("roc", "rocpkgs.nightly-2026-10-13-b17d287"),
 			Tools([
 				"zig",
-          		"godotPackages_4_5.godot",
+				"blazium",
+          		#"godotPackages_4_3.godot",
 			]),
 		],
 	),
@@ -39,7 +40,7 @@ config = [
 	    Use("ci-env"),
 		Run([
 		    "scripts/ci.roc", "--",
-			"--baseline=godot4.5",
+			"--baseline=godot4.3",
 			"--engines=none",
 			"--targets=x64musl",
 			"--tests=all",
@@ -54,7 +55,7 @@ config = [
 			Tools([
 			    "gh",
     			"zig",
-          		"godotPackages_4_5.godot", # sane baseline
+          		"godotPackages_4_3.godot", # sane baseline
                 "godot", # latest godot
                 "redot", # latest redot
           		"blazium", # latest blazium

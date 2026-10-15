@@ -19,11 +19,11 @@ on:
         default: "x64musl,wasm32"
       baseline:
         type: string
-        default: "godot4.5"
+        default: "godot4.3"
       engines:
         description: "Extra engines beyond baseline (comma-separated)"
         type: string
-        default: "godot4.7,redot26.2"
+        default: "godot4.7,redot26.2,blazium0.6"
 
 permissions:
   contents: write
@@ -50,8 +50,8 @@ jobs:
 
           OPT="${{ inputs.optimize || 'ReleaseFast' }}"
           TARGETS="${{ inputs.targets || 'x64musl,wasm32' }}"
-          BASELINE="${{ inputs.baseline || 'godot4.5' }}"
-          ENGINES="${{ inputs.engines || 'godot4.7,redot26.2' }}"
+          BASELINE="${{ inputs.baseline || 'godot4.3' }}"
+          ENGINES="${{ inputs.engines || 'godot4.7,redot26.2,blazium0.6' }}"
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             TAG_IN="${{ inputs.tag }}"

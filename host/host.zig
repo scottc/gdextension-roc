@@ -744,9 +744,7 @@ fn instanceAllocator() std.mem.Allocator {
 
 fn createInstance(
     p_class_userdata: ?*anyopaque,
-    notify_postinitialize: baseline_gde_if.GDExtensionBool,
 ) callconv(.c) baseline_gde_if.GDExtensionObjectPtr {
-    _ = notify_postinitialize;
     printWarn("createInstance(...)\n", .{});
 
     const info: *const GodotRocClassInfo = @ptrCast(@alignCast(p_class_userdata orelse return null));
@@ -756,7 +754,8 @@ fn createInstance(
     var class_sn = gde_call.makeStringName(ctx(), info.nameZ());
     defer gde_call.destroyStringName(ctx(), &class_sn);
 
-    const obj = g_engine_interface.classdb_construct_object2(@ptrCast(&parent_sn));
+    // 4.3: classdb_construct_object (not construct_object2)
+    const obj = g_engine_interface.classdb_construct_object(@ptrCast(&parent_sn));
     if (obj == null) return null;
 
     const self = instanceAllocator().create(GodotRocObjectInstance) catch return null;
@@ -809,17 +808,18 @@ fn registerClass(info: *GodotRocClassInfo) void {
     var parent_sn = gde_call.makeStringName(ctx(), info.parentZ());
     defer gde_call.destroyStringName(ctx(), &parent_sn);
 
-    var creation: baseline_gde_if.GDExtensionClassCreationInfo5 = undefined;
+    var creation: baseline_gde_if.GDExtensionClassCreationInfo3 = undefined;
     @memset(@as([*]u8, @ptrCast(&creation))[0..@sizeOf(@TypeOf(creation))], 0);
 
     creation.is_exposed = 1;
+    // is_runtime is present on Info3 (defaults to 0 from memset — fine for most classes)
     creation.create_instance_func = createInstance;
     creation.free_instance_func = freeInstance;
     creation.recreate_instance_func = recreateInstance;
-    creation.get_virtual_func = @ptrCast(@constCast(&getVirtual));
+    creation.get_virtual_func = getVirtual;
     creation.class_userdata = info;
 
-    g_engine_interface.classdb_register_extension_class5(
+    g_engine_interface.classdb_register_extension_class3(
         g_engine_library,
         @ptrCast(&class_sn),
         @ptrCast(&parent_sn),
@@ -963,10 +963,9 @@ fn onProcess(
 fn getVirtual(
     class_userdata: ?*anyopaque,
     name: baseline_gde_if.GDExtensionConstStringNamePtr,
-    hash: u32,
 ) callconv(.c) ?baseline_gde_if.GDExtensionClassCallVirtual {
     _ = class_userdata;
-    if (hash == api.hashes.Node__ready) return onReady;
+    if (stringNameEq(name, "_ready")) return onReady;
     if (stringNameEq(name, "_process")) return onProcess;
     if (stringNameEq(name, "_physics_process")) return onPhysicsProcess;
     return null;
@@ -983,7 +982,8 @@ fn stringNameEq(
         baseline_gde_if.GDExtensionVariantOperator.equal,
         baseline_gde_if.GDExtensionVariantType.string_name,
         baseline_gde_if.GDExtensionVariantType.string_name,
-    );
+    ) orelse return false;
+
     var result: baseline_gde_if.GDExtensionBool = 0;
     eval(@ptrCast(name), @ptrCast(&other), @ptrCast(&result));
     return result != 0;

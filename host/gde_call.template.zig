@@ -271,9 +271,8 @@ pub fn callUtility(
 ) bool {
     var name_sn = makeStringName(ctx, name);
     defer destroyStringName(ctx, &name_sn);
-    const fn_ptr = ctx.iface.variant_get_ptr_utility_function(stringNamePtr(&name_sn), hash);
-    //if (fn_ptr == null) return false;
-    fn_ptr(ret, args, @intCast(arg_count)); // i64 → i32
+    const fn_ptr = ctx.iface.variant_get_ptr_utility_function(stringNamePtr(&name_sn), hash) orelse return false;
+    fn_ptr(ret, args, @intCast(arg_count));
     return true;
 }
 
