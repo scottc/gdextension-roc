@@ -17,14 +17,12 @@ jump_force = 50.0
 
 physics_process! : F64 => {}
 physics_process! = |_delta| {
-    gravity = PhysicsBody3D.get_gravity!().y.to_f32_wrap()
-    velocity = CharacterBody3D.get_velocity!()
     CharacterBody3D.set_velocity!({
-        x: velocity.x,
-        y: velocity.y + (-gravity),
-        z: velocity.z,
+        x: CharacterBody3D.get_velocity!().x,
+        y: CharacterBody3D.get_velocity!().y + PhysicsBody3D.get_gravity!().y.to_f32_wrap(),
+        z: CharacterBody3D.get_velocity!().z,
     })
-    _mas = CharacterBody3D.move_and_slide!()
+    _ = CharacterBody3D.move_and_slide!()
     {}
 }
 
