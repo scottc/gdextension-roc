@@ -83,7 +83,11 @@ export fn godot_roc_init(
         g_engine_interface.print_error(ver_msg.ptr, "godot_roc_init", "host.zig", @src().line, 1);
     }
 
-    g_engine_interface.get_godot_version2(&g_engine_runtime_version2);
+    // TODO: conditionally upgrade at comptime
+    // when better & faster apis are avaliable...
+    // and also still check if it's safe to call at runtime.
+    // game developers may link against mismatching engine versions etc.
+    // g_engine_interface.get_godot_version2(&g_engine_runtime_version2);
 
     r_initialization.* = .{
         .minimum_initialization_level = .initialization_scene,

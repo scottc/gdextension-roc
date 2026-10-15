@@ -41,7 +41,7 @@ main! : List(OsStr) => Try({}, _)
 main! = |args| {
     str_args = args.map(|a| a.display())
     engine : Engine
-    engine = Args.parse_engine_flag_or_godot4_5(str_args)
+    engine = Args.parse_engine_flag_or_godot4_3(str_args)
 
     Stdout.line!("# Engine: ${engine.to_name()}")?
 

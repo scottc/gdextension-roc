@@ -47,7 +47,7 @@ main! : List(Str) => Try({}, [BadNumStr, EngineParseError(Str), Exit(I32), ListW
 main! = |args| {
     cfg : PubConfig
     cfg = {
-        baseline: Args.parse_baseline_flag_or_godot4_5(args), #TODO: handle error, don't early return these failures.
+        baseline: Args.parse_baseline_flag_or_godot4_3(args), #TODO: handle error, don't early return these failures.
         engines: Args.parse_engines_flag_or_empty(args),
         hosts: Args.parse_targets_flag_or_auto(args),
         optimize: Args.parse_optimize_flag_or_release_fast(args),

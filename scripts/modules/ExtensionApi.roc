@@ -36,7 +36,7 @@ ExtensionApi := {
         version_status : Str,
         version_build : Str,
         version_full_name : Str,
-        precision : Str,
+        precision : Try(Str, [Missing]),
     }
 
     BuiltinClassSizes : {
@@ -89,7 +89,7 @@ ExtensionApi := {
         return_type : Try(Str, [Missing]),
         category : Str,
         is_vararg : Bool,
-        hash : U64,
+        hash : Try(U64, [Missing]),
         arguments : Try(List(Argument), [Missing]),
         description : Try(Str, [Missing]),
     }
@@ -107,7 +107,7 @@ ExtensionApi := {
         is_static : Bool,
         is_vararg : Bool,
         is_virtual : Try(Bool, [Missing]),
-        hash : U64,
+        hash : Try(U64, [Missing]),
         hash_compatibility : Try(List(U64), [Missing]),
         return_type : Try(Str, [Missing]),
         return_value : Try(ReturnValue, [Missing]),

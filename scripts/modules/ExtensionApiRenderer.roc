@@ -329,7 +329,7 @@ ExtensionApiRenderer := {}.{
                                 Str.join_with(a.map(|x| c_to_host_type(x.type)), ", ")
                             _ => "()"
                         }
-                    sym = host_util_symbol(uf.name, uf.hash)
+                    sym = host_util_symbol(uf.name, u64_or_0(uf.hash))
                     host_entry(sym, args, ret)
                 }),
                 "\n",
@@ -342,7 +342,7 @@ ExtensionApiRenderer := {}.{
                         Ok(ms) =>
                             Str.join_with(
                                 ms.map(|md| {
-                                    sym = host_method_symbol(bic.name, md.name, md.hash)
+                                    sym = host_method_symbol(bic.name, md.name, u64_or_0(md.hash))
                                     host_entry(sym, method_arg_types_host_for(bic.name, md), method_return_type_host(md))
                                 }),
                                 "\n",
@@ -360,7 +360,7 @@ ExtensionApiRenderer := {}.{
                         Ok(ms) =>
                             Str.join_with(
                                 ms.map(|md| {
-                                    sym = host_method_symbol(cls.name, md.name, md.hash)
+                                    sym = host_method_symbol(cls.name, md.name, u64_or_0(md.hash))
                                     host_entry(sym, method_arg_types_host(md), method_return_type_host(md))
                                 }),
                                 "\n",
@@ -829,7 +829,7 @@ ExtensionApiRenderer := {}.{
                             _ => "()"
                         }
                     fn = roc_fn_name(uf.name)
-                    sym = host_util_symbol(uf.name, uf.hash)
+                    sym = host_util_symbol(uf.name, u64_or_0(uf.hash))
                     \\    ${fn}! : ${args} => ${ret}
                     \\    ${fn}! = Host.${sym}!
                 }),
@@ -1502,12 +1502,12 @@ all_host_symbols : ExtensionApi -> List(Str)
 all_host_symbols = |eapi| {
 
     sings = eapi.singletons.map(|s| host_singleton_symbol(s.name))
-    utils = eapi.utility_functions.map(|uf| host_util_symbol(uf.name, uf.hash))
+    utils = eapi.utility_functions.map(|uf| host_util_symbol(uf.name, u64_or_0(uf.hash)))
 
     builtin_ms =
         eapi.builtin_classes.fold([], |acc, bic| {
             match bic.methods {
-                Ok(ms) => List.concat(acc, ms.map(|md| host_method_symbol(bic.name, md.name, md.hash)))
+                Ok(ms) => List.concat(acc, ms.map(|md| host_method_symbol(bic.name, md.name, u64_or_0(md.hash))))
                 _ => acc
             }
         })
@@ -1515,7 +1515,7 @@ all_host_symbols = |eapi| {
     class_ms =
         eapi.classes.fold([], |acc, cls| {
             match cls.methods {
-                Ok(ms) => List.concat(acc, ms.map(|md| host_method_symbol(cls.name, md.name, md.hash)))
+                Ok(ms) => List.concat(acc, ms.map(|md| host_method_symbol(cls.name, md.name, u64_or_0(md.hash))))
                 _ => acc
             }
         })
@@ -1590,7 +1590,7 @@ method_return_type_host = |md|
 method_def_live : Str, MethodDef -> Str
 method_def_live = |owner, md| {
     fn = roc_fn_name(md.name)
-    sym = host_method_symbol(owner, md.name, md.hash)
+    sym = host_method_symbol(owner, md.name, u64_or_0(md.hash))
     args_ty = method_arg_types_host_for(owner, md)
     ret = method_return_type_host(md)
     \\    ${fn}! : ${args_ty} => ${ret}
@@ -1750,7 +1750,7 @@ zig_hash_ident = |s|
 zig_method_hash_entry : Str, MethodDef -> Str
 zig_method_hash_entry = |owner, md| {
     key = "${zig_hash_ident(owner)}_${zig_hash_ident(md.name)}"
-    \\    pub const ${key}: i64 = ${md.hash.to_str()};
+    \\    pub const ${key}: i64 = ${u64_or_0(md.hash).to_str()};
 }
 
 zig_hashes_struct : ExtensionApi -> Str
@@ -1759,7 +1759,7 @@ zig_hashes_struct = |eapi| {
         Str.join_with(
             eapi.utility_functions.map(|uf| {
                 key = "util_${zig_hash_ident(uf.name)}"
-                \\    pub const ${key}: i64 = ${uf.hash.to_str()};
+                \\    pub const ${key}: i64 = ${u64_or_0(uf.hash).to_str()};
             }),
             "\n",
         )
@@ -1837,7 +1837,7 @@ zig_method_return = |md|
 
 zig_export_method : ExtensionApi, Str, MethodDef -> Str
 zig_export_method = |eapi, owner, md| {
-    sym = host_method_symbol(owner, md.name, md.hash)
+    sym = host_method_symbol(owner, md.name, u64_or_0(md.hash))
     ret = zig_method_return(md)
     hkey = method_hash_key(owner, md)
     is_builtin = ExtensionApiRenderer.is_struct_builtin(owner)
@@ -1848,10 +1848,10 @@ zig_export_method = |eapi, owner, md| {
 
     if !(method_is_simple_ptrcall(md)) {
         params = zig_method_params_for(owner, md)
-        msg = "${owner}.${md.name} hash=${md.hash.to_str()} (non-simple / not wired)"
+        msg = "${owner}.${md.name} hash=${u64_or_0(md.hash).to_str()} (non-simple / not wired)"
         body = zig_stub_body(msg, ret)
         \\
-        \\/// ${owner}.${md.name} hash=${md.hash.to_str()} (stub — non-simple)
+        \\/// ${owner}.${md.name} hash=${u64_or_0(md.hash).to_str()} (stub — non-simple)
         \\export fn godot_roc_${sym}(${params}) callconv(.c) ${ret} {
         \\${body}
         \\}
@@ -1870,7 +1870,7 @@ zig_export_method = |eapi, owner, md| {
 
         if ret == "void" {
             \\
-            \\/// ${owner}.${md.name} hash=${md.hash.to_str()} (callBuiltin)
+            \\/// ${owner}.${md.name} hash=${u64_or_0(md.hash).to_str()} (callBuiltin)
             \\export fn godot_roc_${sym}(${params}) callconv(.c) void {
             \\${base_setup}
             \\${setup.locals}${setup.args_array}    _ = gde_call.callBuiltin(
@@ -1886,7 +1886,7 @@ zig_export_method = |eapi, owner, md| {
             \\}
         } else {
             \\
-            \\/// ${owner}.${md.name} hash=${md.hash.to_str()} (callBuiltin)
+            \\/// ${owner}.${md.name} hash=${u64_or_0(md.hash).to_str()} (callBuiltin)
             \\export fn godot_roc_${sym}(${params}) callconv(.c) ${ret} {
             \\${base_setup}
             \\${setup.locals}${setup.args_array}    var ret_val: ${ret} = std.mem.zeroes(${ret});
@@ -1918,7 +1918,7 @@ zig_export_method = |eapi, owner, md| {
                         \\    const obj = g_godot_roc_current orelse return;
                     }
                 \\
-                \\/// ${owner}.${md.name} hash=${md.hash.to_str()} (callInstance)
+                \\/// ${owner}.${md.name} hash=${u64_or_0(md.hash).to_str()} (callInstance)
                 \\export fn godot_roc_${sym}(${params}) callconv(.c) void {
                 \\${obj_setup}
                 \\${setup.locals}${setup.args_array}    _ = gde_call.callInstance(
@@ -1941,7 +1941,7 @@ zig_export_method = |eapi, owner, md| {
                         \\    const obj = g_godot_roc_current orelse return std.mem.zeroes(${ret});
                     }
                 \\
-                \\/// ${owner}.${md.name} hash=${md.hash.to_str()} (callInstance)
+                \\/// ${owner}.${md.name} hash=${u64_or_0(md.hash).to_str()} (callInstance)
                 \\export fn godot_roc_${sym}(${params}) callconv(.c) ${ret} {
                 \\${obj_setup}
                 \\${setup.locals}${setup.args_array}    var ret_val: ${ret} = std.mem.zeroes(${ret});
@@ -1963,7 +1963,7 @@ zig_export_method = |eapi, owner, md| {
 ## Simple utils → gde_call.callUtility; others → stubs
 zig_export_util : UtilityFunction -> Str
 zig_export_util = |uf| {
-    sym = host_util_symbol(uf.name, uf.hash)
+    sym = host_util_symbol(uf.name, u64_or_0(uf.hash))
     ret = c_to_zig_ret_from_try(uf.return_type)
     hash_key = "util_${zig_hash_ident(uf.name)}"
     arg_list = match uf.arguments { Ok(a) => a _ => [] }
@@ -1981,7 +1981,7 @@ zig_export_util = |uf| {
                     ", ",
                 )
             }
-        msg = "utility ${uf.name} hash=${uf.hash.to_str()} (non-simple / vararg / not wired)"
+        msg = "utility ${uf.name} hash=${u64_or_0(uf.hash).to_str()} (non-simple / vararg / not wired)"
         body = zig_stub_body(msg, ret)
         \\
         \\/// utility ${uf.name} (stub — non-simple / vararg)
@@ -2060,7 +2060,7 @@ zig_export_util = |uf| {
             }
 
         \\
-        \\/// utility ${uf.name} hash=${uf.hash.to_str()} (gde_call)
+        \\/// utility ${uf.name} hash=${u64_or_0(uf.hash).to_str()} (gde_call)
         \\export fn godot_roc_${sym}(${params}) callconv(.c) ${ret} {
         \\${locals}${args_array}
         \\${body_ret}
@@ -2151,3 +2151,10 @@ to_roc_entry = |cpu_arch_os| {
         CpuArchOS.Arm64mingw =>  \\arm64mingw: { inputs: ["host.lib", app], output: Shared },
     }
 }
+
+u64_or_0 : Try(U64, [Missing]) -> U64
+u64_or_0 = |h|
+    match h {
+        Ok(n) => n
+        Err(_) => 0
+    }

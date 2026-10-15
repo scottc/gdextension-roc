@@ -5,32 +5,32 @@ import StringHelper
 import Host exposing [Optimize]
 
 Args := {}.{
-    ## --engine=godot4.5
-    parse_engine_flag_or_godot4_5 : List(Str) -> Engine
-    parse_engine_flag_or_godot4_5 = |args| {
+    ## --engine=godot4.3
+    parse_engine_flag_or_godot4_3 : List(Str) -> Engine
+    parse_engine_flag_or_godot4_3 = |args| {
         e : Engine
         e = match flag_value(args, "--engine=") {
             Some(bl) =>
                 match Engine.from_name(bl) {
                     Ok(eg) => eg
-                    _ => Godot({ major: 4, minor: 5 })
+                    _ => Godot({ major: 4, minor: 3 })
                 }
-            None => Godot({ major: 4, minor: 5 })
+            None => Godot({ major: 4, minor: 3 })
         }
         e
     }
 
-    ## --baseline=godot4.5
-    parse_baseline_flag_or_godot4_5 : List(Str) -> Engine
-    parse_baseline_flag_or_godot4_5 = |args| {
+    ## --baseline=godot4.3
+    parse_baseline_flag_or_godot4_3 : List(Str) -> Engine
+    parse_baseline_flag_or_godot4_3 = |args| {
         e : Engine
         e = match flag_value(args, "--baseline=") {
             Some(bl) =>
                 match Engine.from_name(bl) {
                     Ok(eg) => eg
-                    _ => Godot({ major: 4, minor: 5 })
+                    _ => Godot({ major: 4, minor: 3 })
                 }
-            None => Godot({ major: 4, minor: 5 })
+            None => Godot({ major: 4, minor: 3 })
         }
         e
     }

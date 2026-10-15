@@ -6,7 +6,7 @@ Engine := [
     Rex(Version),
     Blazium(Version),
 ].{
-    expect Engine.Godot({ major: 4, minor: 5 }).to_path_slug() == "godot4_5"
+    expect Engine.Godot({ major: 4, minor: 3 }).to_path_slug() == "godot4_3"
     expect Engine.Redot({ major: 26, minor: 2 }).to_path_slug() == "redot26_2"
     expect Engine.Rex({ major: 0, minor: 0 }).to_path_slug() == "rex0_0"
     expect Engine.Blazium({ major: 0, minor: 6 }).to_path_slug() == "blazium0_6"
@@ -20,7 +20,7 @@ Engine := [
         }
     }
 
-    expect Engine.Godot({ major: 4, minor: 5 }).to_name() == "godot4.5"
+    expect Engine.Godot({ major: 4, minor: 3 }).to_name() == "godot4.3"
     expect Engine.Redot({ major: 26, minor: 2 }).to_name() == "redot26.2"
     expect Engine.Rex({ major: 0, minor: 0 }).to_name() == "rex0.0"
     expect Engine.Blazium({ major: 0, minor: 6 }).to_name() == "blazium0.6"
@@ -34,18 +34,17 @@ Engine := [
         }
     }
 
-    expect Engine.Godot({ major: 4, minor: 7 }).to_cli_name() == "godot"
-    expect Engine.Godot({ major: 4, minor: 5 }).to_cli_name() == "godot4.5"
+    expect Engine.Godot({ major: 4, minor: 7 }).to_cli_name() == "godot4.7"
+    expect Engine.Godot({ major: 4, minor: 5 }).to_cli_name() == "godot4.3"
     expect Engine.Redot({ major: 26, minor: 2 }).to_cli_name() == "redot"
     expect Engine.Rex({ major: 0, minor: 0 }).to_cli_name() == "rex"
     expect Engine.Blazium({ major: 0, minor: 6 }).to_cli_name() == "blazium"
     to_cli_name : Engine -> Str
     to_cli_name = |engine| {
         match engine {
-            Godot(version) => match version {
-                { major: 4, minor: 5 } => "godot4.5"
-                _ => "godot"
-            }
+            # Hmmm... how do we detect if godot should be:
+            # "latest implict: 'godot'" or "explict version: 'godot4.3'"
+            Godot(v) => "godot${v.major.to_str()}.${v.minor.to_str()}"
             Redot(_version) => "redot"
             Rex(_version) => "rex"
             Blazium(_version) => "blazium"

@@ -32,7 +32,7 @@ config = [
 			Tools([
 				"zig",
 				#"rex",
-          		#"godotPackages_4_3.godot",
+          		"godotPackages_4_3.godot",
 			]),
 		],
 	),
