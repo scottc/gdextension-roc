@@ -1200,7 +1200,7 @@ BuildCmdHelper := {}.{
     }
 
     ## Stage labeled assets + NOTES.md, then gh release create.
-    ## Asset name: <slug>-platform-<original-hash>.tar.zst
+    ## Asset name: <slug>-<original-hash>.tar.zst
     ## Roc only needs the URL body; filename is for humans.
     ##
     ## Important: never put bash `${name}` inside a Roc string literal.
@@ -1341,7 +1341,7 @@ BuildCmdHelper := {}.{
                     "\" .tar.zst)\n",
                     "  _dest=\"$STAGING/",
                     b_slug,
-                    "-platform-",
+                    "-",
                     b_hash,
                     ".tar.zst\"\n",
                     "  cp -f \"",
