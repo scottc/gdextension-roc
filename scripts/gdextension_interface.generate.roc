@@ -8,10 +8,9 @@
 ##   roc run scripts/gdextension_interface.generate.roc -- --engine=godot4.5
 ##   roc run scripts/gdextension_interface.generate.roc -- --engine=godot4_5
 ##   roc run scripts/gdextension_interface.generate.roc -- --engine=redot
-##   roc run scripts/gdextension_interface.generate.roc -- --engine=rex
 ##
 ## Path slug (dump-out/ / host/glue-out/):
-##   godot | godot4_5 | redot | rex
+##   godot | godot4_5 | redot | blazium
 
 app [main!] {
     pf: platform "https://github.com/roc-lang/basic-cli/releases/download/0.25.0/CZsY7tYZwR3rj9kYbpaCfxki2yVAaRL8bBwMLvB2xkbA.tar.zst"

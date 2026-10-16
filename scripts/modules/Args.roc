@@ -35,7 +35,7 @@ Args := {}.{
         e
     }
 
-    ## --engines=godot4.5,redot26.2,rex0.0
+    ## --engines=godot4.5,redot26.2,blazium0.6
     parse_engines_flag_or_empty : List(Str) -> List(Engine)
     parse_engines_flag_or_empty = |args| {
         match flag_value(args, "--engines=") {

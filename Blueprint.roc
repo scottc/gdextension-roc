@@ -13,7 +13,6 @@ config = [
 	Name("gdextension-roc-platform-generator"),
 	Overlay("roc", "github:roc-lang/roc-overlay"),
 	Overlay("redot", "path:./flakes/redot-nix"),
-	#Overlay("rex", "path:./flakes/rex-nix"),
 	Overlay("blazium", "path:./flakes/blazium-nix"),
 	Shell("default", [Use("ci-env")]),
 	Environment("dev-env", [
@@ -27,11 +26,10 @@ config = [
 	Environment(
 		"ci-env",
 		[
-			Overlays(["roc"]), #rex
+			Overlays(["roc"]),
 			Command("roc", "rocpkgs.nightly-2026-10-13-b17d287"),
 			Tools([
 				"zig",
-				#"rex",
           		"godotPackages_4_3.godot",
 			]),
 		],
@@ -60,7 +58,6 @@ config = [
                 "redot", # latest redot
           		"blazium", # latest blazium
                 #"godotPackages_4_3.godot", # oldest godot for max compatibility...
-          		#"rex", # When api dumps are working...
 			]),
 		],
 	),
