@@ -59,7 +59,7 @@ ExtensionApiRenderer := {}.{
         \\        engine = match Host.current_engine!() {
         \\            0 => Godot4_7Tag({ godot4_7_instance_field: 0 })
         \\            1 => Redot26_2Tag({ godot26_2_instance_field: 0 })
-        \\            2 => Blazium0_6Tag({ blazium0_6_static_field: 0 })
+        \\            2 => Blazium0_6Tag({ blazium0_6_instance_field: 0 })
         \\            _ => crash "Host.current_engine!() got unexpected tag union value."
         \\        }
         \\        engine
