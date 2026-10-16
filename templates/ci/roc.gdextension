@@ -1,6 +1,6 @@
 [configuration]
 entry_symbol = "godot_roc_init"
-compatibility_minimum = "4.5"
+compatibility_minimum = "4.3"
 reloadable = true
 
 [libraries]

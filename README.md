@@ -1,15 +1,15 @@
-# [![Godot-Roc](brand/logo-stroke.plain.svg)](https://github.com/scottc/godot-roc)
+# [![GDExtension-Roc](brand/logo-stroke.plain.svg)](https://github.com/scottc/godot-roc)
 
 GDExtension Roc language bindings generator for Godot Game Engine, Redot Game Engine & Blazium Game Engine.
 
 > [!NOTE]   
-> For **game development** with godot-roc see our [Getting Started Example](https://github.com/scottc/survivepg).
+> For **game development** with GDExtension-roc see our flagship example project [SurvivePG](https://github.com/scottc/survivepg).
 >
-> This page is for the godot-roc **platform generator**.
+> This page is for the **GDExtension roc platform generator**.
 
 ## About
 
-Godot-Roc lets you write game logic in [Roc](https://roc-lang.org/), "A [fast](https://roc-lang.org/fast), [friendly](https://roc-lang.org/friendly), [functional](https://roc-lang.org/functional) language". While [Godot Engine](https://godotengine.org/), [Redot Engine](https://www.redotengine.org/) or [Blazium Engine](https://blazium.app/) handles scenes, rendering, and tooling.
+GDExtension-Roc lets you write game logic in [Roc](https://roc-lang.org/), "A [fast](https://roc-lang.org/fast), [friendly](https://roc-lang.org/friendly), [functional](https://roc-lang.org/functional) language". While [Godot Engine](https://godotengine.org/), [Redot Engine](https://www.redotengine.org/) or [Blazium Engine](https://blazium.app/) handles scenes, rendering, and tooling.
 
 game engine/s <-> zig host runtime <-> roc platform APIs <-> game development experience
 
@@ -21,13 +21,13 @@ Live web wasm32-emscripten demo:
 - [redot-demo](https://scottc.github.io/redot-roc)
 - [blazium-demo](https://scottc.github.io/blazium-roc)
 
-![Godot-Roc Screenshot](brand/Screenshot_20260923_194128.png)
+![GDExtension-Roc Screenshot](brand/Screenshot_20260923_194128.png)
 
 The binding generator will allow for multi-engine & multi-version projects, which can help facilitate engine migration or games targeting an array of engines. As well as custom trimmed down APIs for "just my use-case", for example a 2D project where you don't need 3D apis.
 
 ## Binding Generator Status - 2026-10-10
 
-> Snapshot of the **godot-roc** binding generator (from `extension_api.json`).  
+> Snapshot of the **gdextension-roc** binding generator (from `gdextension.h` & `extension_api.json`).  
 > Status is intentionally conservative so new users can see what’s real vs. stubbed.
 
 | Area | Status | Notes |
@@ -156,7 +156,7 @@ godot-roc is developed & maintained by a solo dev; me. Here are some things that
 
 - **Freedom to continue working on godot-roc**, as how I see fit... For me, I just generally enjoy the process of experimenting with new technology, dealing with new & difficult challenges. And ultimately to serve the needs & desires of game developers & gamers. And I hope that you find this project to be extremely useful.
 
-- **Freedom to move onto the next project**, while this project is great. I eventually see the need to swap out the engine, to a more modern, open-source, high performance design that can out-compete unreal & unity. And the godot-4.5.1 style bindings could be a limiting factor in engine design. As such I have my eyes on the next generation ECS-like engines; bevy and alike.
+- **Freedom to move onto the next project**, while this project is great. I eventually see the need to swap out the GDExtension game engine interface design, to a more modern, open-source, high performance design that can out-compete unreal & unity. And the godot4.3 style bindings could be a limiting factor in engine design. As such I have my eyes on the next generation ECS-like engines; bevy and alike.
 
 ## Scripts - For platform maintainers.
 
