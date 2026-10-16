@@ -27,7 +27,7 @@
         assets = {
           "x86_64-linux" = {
             url = "https://github.com/Redot-Engine/redot-engine/releases/download/redot-${version}/Redot_v${version}_linux_x64.zip";
-            hash = "sha256-9HTYkIBsQa8VUTz1qGACQ+JBiC4Rto27lWYONGW1seQ=";
+            hash = "sha256-fVFVuA9CYvCjlMUEDlObszDLY90Ue+3ZFy2D7C79vZE=";
           };
 
           # nix-prefetch-url --type sha256 'https://github.com/…/Redot_v26.2-stable_linux_arm64.zip'
@@ -115,6 +115,9 @@
         apps.default = {
           type = "app";
           program = "${redot}/bin/redot";
+          meta = {
+            description = "Redot Engine editor";
+          };
         };
       }
     ))

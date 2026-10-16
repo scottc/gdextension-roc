@@ -284,9 +284,9 @@
 						(name "locked")
 						(value (Attrs ((
 							(name "lastModified")
-							(value (Int 1792150867))) (
+							(value (Int 1792168614))) (
 							(name "narHash")
-							(value (Str "sha256-ttIhkUEMzdWjQKmZa86UpGHXGY9oB1CMsBl4quTyFbk="))) (
+							(value (Str "sha256-GvLwkeYbbQpzL/wq0bh5Mfz81W/np2t2GbzUVrIUCiA="))) (
 							(name "type")
 							(value (Str "path"))) (
 							(name "path")
@@ -416,7 +416,7 @@
 		(provider "nix")
 		(ref "github:roc-lang/roc-overlay")
 		(rev "8ecd94ac61036379778dca910bdaa6da6cd40bb8")) (
-		(digest "sha256:df9ef1e9ad14d88d7ec1d12174ae5088b273d5830aa97c0234be47d4903810fe")
+		(digest "sha256:13aa9a100bbde37d6d339eaa4f19ecc46b0ac700e73ae731df3817fb43a34c53")
 		(name "redot")
 		(provider "nix")
 		(ref "path:flakes/redot-nix")
