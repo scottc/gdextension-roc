@@ -19,6 +19,7 @@ Live web wasm32-emscripten demo:
 
 - [godot-demo](https://scottc.github.io/godot-roc)
 - [redot-demo](https://scottc.github.io/redot-roc)
+- [blazium-demo](https://scottc.github.io/blazium-roc)
 
 ![Godot-Roc Screenshot](brand/Screenshot_20260923_194128.png)
 
