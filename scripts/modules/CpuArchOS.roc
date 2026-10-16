@@ -1,6 +1,7 @@
 ## CpuArchOS.roc
 import StringHelper
 
+## Hardware & software targets.
 CpuArchOS := [
     Wasm32,
     X64musl,
@@ -29,8 +30,9 @@ CpuArchOS := [
         Arm64mingw,
     ]
 
+    # TODO: detect local native arch that this was compiled on @ comptime.
     auto : List(CpuArchOS)
-    auto = [CpuArchOS.Wasm32, CpuArchOS.X64musl] # TODO: detect local native arch that this was compiled against @ comptime.
+    auto = [CpuArchOS.Wasm32, CpuArchOS.X64musl]
 
     to_name : CpuArchOS -> Str
     to_name = |cpu_arch_os| {

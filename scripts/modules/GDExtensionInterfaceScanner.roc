@@ -6,9 +6,9 @@ ScannedTypeDefSlice : {
     next : U64,
 }
 
-GDExtensionInterfaceScanner := {
-
-}.{
+## A general purpose C header `.h` scanner
+## To efficently find key needles in the source haystack
+GDExtensionInterfaceScanner := {}.{
     needle_doc = "/**".to_utf8()
     needle_block_open = "/*".to_utf8()
     needle_block_close = "*/".to_utf8()
@@ -25,7 +25,6 @@ GDExtensionInterfaceScanner := {
     match_at = |bytes, i, needle_bytes| {
         StringHelper.bytes_eq_at(bytes, i, needle_bytes)
     }
-
 
     next_typedef_block : List(U8), U64 -> Try(ScannedTypeDefSlice, [Done])
     next_typedef_block = |bytes, start| {

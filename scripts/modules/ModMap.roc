@@ -1,4 +1,4 @@
-## We need to rename some things, to avoid collisions.
+## Rename some things, to avoid collisions.
 ModMap := {}.{
     class_module_name : Str -> Str
     class_module_name = |name| {

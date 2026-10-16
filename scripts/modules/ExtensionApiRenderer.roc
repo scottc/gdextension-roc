@@ -12,6 +12,7 @@ import ExtensionApi exposing [
     PropertyDef,
 ]
 
+## Zig & Roc code renderer from extension_api.json data.
 ExtensionApiRenderer := {}.{
 
     render_godot_roc_module = || {

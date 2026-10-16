@@ -1,4 +1,4 @@
-
+## GDExtension extension_api.json document object schema
 ExtensionApi := {
     # header : Header,
     # builtin_class_sizes : List(BuiltinClassSizes),
@@ -11,11 +11,6 @@ ExtensionApi := {
     # singletons : List(Singleton),
     # native_structures : List(NativeStructure),
 }.{
-    # parser_for : JsonEncoding -> (JsonState -> Try({ rest: JsonState, value: ExtensionApi },
-    #     [InvalidJson(Str)]))
-    # parser_for = |_je| {
-    #     crash "NOT IMPLEMETNED?!@!@!!!!!"
-    # }
     ExtensionApi : {
         header : Header,
         builtin_class_sizes : List(BuiltinClassSizes),
@@ -193,5 +188,4 @@ ExtensionApi := {
         name : Str,
         format : Str,
     }
-
 }

@@ -3,9 +3,8 @@ import GDExtensionInterfaceScanner
 import GDExtensionInterface exposing [CommentInfo, EnumVariant, ParamInfo, StructField, InterfaceFn]
 import StringHelper
 
-GDExtensionInterfaceRenderer := {
-
-}.{
+## A .zig code renderer, from general purpose C header `.h` data.
+GDExtensionInterfaceRenderer := {}.{
 
     # ---------------------------------------------------------------------------
     # Render: types

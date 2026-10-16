@@ -1,6 +1,5 @@
-GDExtensionInterface := {
-
-}.{
+## General purpose C header `.h` types
+GDExtensionInterface := {}.{
     InterfaceFn : {
         api_name : Str,
         typedef_name : Str,

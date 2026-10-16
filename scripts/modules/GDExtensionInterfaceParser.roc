@@ -2,9 +2,8 @@ import GDExtensionInterfaceScanner
 import GDExtensionInterface exposing [CommentInfo, TypeDefInfo, StructField, EnumVariant]
 import StringHelper
 
-GDExtensionInterfaceParser := {
-
-}.{
+## General purpose C header `.h` parser
+GDExtensionInterfaceParser := {}.{
     # ---------------------------------------------------------------------------
     # Comment + typedef parsers
     # ---------------------------------------------------------------------------

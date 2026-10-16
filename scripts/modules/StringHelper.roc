@@ -1,4 +1,4 @@
-## StringHelper.roc
+## General purpose string functions for a variety of tasks.
 StringHelper := {}.{
 
     # ---------------------------------------------------------------------------

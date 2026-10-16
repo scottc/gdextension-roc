@@ -1,5 +1,6 @@
 Version : { major: U32, minor: U32 }
 
+## A GDExtension compatible game engine.
 Engine := [
     Godot(Version),
     Redot(Version),
