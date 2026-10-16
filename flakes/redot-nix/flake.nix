@@ -21,7 +21,7 @@
       let
         pkgs = import nixpkgs { inherit system; };
 
-        version = "26.2-stable";
+        version = "26.3-stable";
 
         # platform → release asset
         assets = {

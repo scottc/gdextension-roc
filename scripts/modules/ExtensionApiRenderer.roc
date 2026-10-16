@@ -43,22 +43,22 @@ ExtensionApiRenderer := {}.{
         \\    godot4_7_static_field : U32
         \\    godot4_7_static_field = 0
         \\}
-        \\Redot26_2Module :: { godot26_2_instance_field: U32 }.{
-        \\    godot26_2_static_field : U32
-        \\    godot26_2_static_field = 0
+        \\Redot26_3Module :: { godot26_3_instance_field: U32 }.{
+        \\    godot26_3_static_field : U32
+        \\    godot26_3_static_field = 0
         \\}
         \\Blazium0_6Module :: { blazium0_6_instance_field: U32 }.{
         \\    blazium0_6_static_field : U32
         \\    blazium0_6_static_field = 0
         \\}
-        \\EngineModuleTagUnion : [Godot4_7Tag(Godot4_7Module), Redot26_2Tag(Redot26_2Module), Blazium0_6Tag(Blazium0_6Module)]
+        \\EngineModuleTagUnion : [Godot4_7Tag(Godot4_7Module), Redot26_3Tag(Redot26_3Module), Blazium0_6Tag(Blazium0_6Module)]
         \\
         \\    current_engine! : () => EngineModuleTagUnion
         \\    current_engine! = || {
         \\        engine : EngineModuleTagUnion
         \\        engine = match Host.current_engine!() {
         \\            0 => Godot4_7Tag({ godot4_7_instance_field: 0 })
-        \\            1 => Redot26_2Tag({ godot26_2_instance_field: 0 })
+        \\            1 => Redot26_3Tag({ godot26_3_instance_field: 0 })
         \\            2 => Blazium0_6Tag({ blazium0_6_instance_field: 0 })
         \\            _ => crash "Host.current_engine!() got unexpected tag union value."
         \\        }
@@ -123,7 +123,7 @@ ExtensionApiRenderer := {}.{
         \\    #exclusive_spell! : () => F32     # e.g. Godot-only ability
         \\    #procedural_map_v2! : () => {}
         \\}
-        \\Redot26_2Api :: [].{
+        \\Redot26_3Api :: [].{
         \\    exclusive_map = 7.7
         \\    #exclusive_ability! : () => U32   # Redot-only ability
         \\    #redot_terrain_gen! : () => {}

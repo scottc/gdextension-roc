@@ -8,7 +8,7 @@ Project [templates.zip](https://github.com/scottc/godot-roc/releases/download/0.
 
 ## Install Requirements
 
-* `godot4.3` or newer; `godot4.7`, `redot26.2`, `blazium0.6`.
+* `godot4.3` or newer; `godot4.7`, `redot26.3`, `blazium0.6`.
 * `roc` [Install](https://roc-lang.org/install) (Pinned Version: [nightly-2026-09-27-a3ce7f1](https://github.com/roc-lang/nightlies/releases#release-nightly-2026-09-27-a3ce7f1))
 * `linux-x86_64` only (Windows, MacOS & Web support coming soon)
 

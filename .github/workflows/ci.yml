@@ -13,7 +13,7 @@ on:
         options:
           - godot4.3
           - godot4.7
-          - redot26.2
+          - redot26.3
           - blazium0.6
         default: godot4.3
       optimize:
@@ -33,7 +33,7 @@ on:
           - all
           - godot4.3
           - godot4.7
-          - redot26.2
+          - redot26.3
           - blazium0.6
         default: none
       cpuarchos:

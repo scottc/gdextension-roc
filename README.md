@@ -32,7 +32,7 @@ The binding generator will allow for multi-engine & multi-version projects, whic
 
 | Area | Status | Notes |
 |------|--------|-------|
-| **Engine support** | Partial | Godot 4.x primary. Multi-engine tags exist (`Godot4.7`, `Godot4.3`, `Redot26.2`, `Blazium0.6`) but runtime/compile selection is still partially hardcoded. |
+| **Engine support** | Partial | Godot 4.x primary. Multi-engine tags exist (`Godot4.7`, `Godot4.3`, `Redot26.3`, `Blazium0.6`) but runtime/compile selection is still partially hardcoded. |
 | **Engine version** | Godot 4.7 (header-driven) | `EngineInfo` is generated from the dumped `extension_api.json` header (`version_major/minor/patch` + full name). Platform identity currently fixed as `Godot4.7`. |
 | **Roc API availability** | High (surface) | Full generation of: Host signatures, GlobalConstants, GlobalEnums, BuiltinClassSizes/MemberOffsets, NativeStructures, UtilityFunctions, math value types, builtin classes, Object classes, singletons, and platform `main.roc`. |
 | **Zig stubs** | Yes (non-simple) | Methods / utility functions that are **vararg** or use non-wireable types fall back to stub bodies (`return 0` / `zeroes` / `undefined`). |
@@ -207,7 +207,7 @@ blueprint shell
 # nix run github:lukewilliamboswell/roc-blueprint/0.5.0 -- run ci -- \
 blueprint run ci \
 --baseline=godot4.3 \
---engines=godot-stable,redot-stable \
+--engines=godot4.7,redot26.3 \
 --targets=x64musl,wasm32 \
 --tests=all \
 -Doptimize=Debug
