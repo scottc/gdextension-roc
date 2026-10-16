@@ -1,5 +1,5 @@
 [configuration]
-entry_symbol = "godot_roc_init"
+entry_symbol = "gdextension_roc_init"
 compatibility_minimum = "4.3"
 reloadable = true
 

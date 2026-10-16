@@ -2142,7 +2142,7 @@ render_targets_block = |selected_targets, all_targets| {
 to_roc_entry : CpuArchOS -> Str
 to_roc_entry = |cpu_arch_os| {
     match cpu_arch_os {
-        CpuArchOS.Wasm32 =>      \\wasm32: { inputs: [ "libhost.o.wasm", app ], output: Archive, exports: [ "godot_roc_init" ], },
+        CpuArchOS.Wasm32 =>      \\wasm32: { inputs: [ "libhost.o.wasm", app ], output: Archive, exports: [ "gdextension_roc_init" ], },
         CpuArchOS.X64musl =>     \\x64musl: { inputs: [ "libhost.a", app ], output: Shared },
         CpuArchOS.X64v1musl =>   \\x64v1musl: { inputs: [ "libhost.a", app ], output: Shared },
         CpuArchOS.Arm64musl =>   \\arm64musl: { inputs: [ "libhost.a", app ], output: Shared },

@@ -59,10 +59,10 @@ var g_input: baseline_gde_if.GDExtensionObjectPtr = null;
 var g_engine_singleton: baseline_gde_if.GDExtensionObjectPtr = null;
 
 // ---------------------------------------------------------------------------
-// godot_roc_init
+// gdextension_roc_init
 // ---------------------------------------------------------------------------
 
-export fn godot_roc_init(
+export fn gdextension_roc_init(
     p_get_proc_address: baseline_gde_if.GDExtensionInterfaceGetProcAddress,
     p_library: baseline_gde_if.GDExtensionClassLibraryPtr,
     r_initialization: *baseline_gde_if.GDExtensionInitialization,
@@ -79,8 +79,8 @@ export fn godot_roc_init(
             &ver_buf,
             "This version of godot-roc was compiled for godot 4.7.2, but got: {s}.",
             .{ver_slice},
-        ) catch "godot-roc: version mismatch (string truncated).";
-        g_engine_interface.print_error(ver_msg.ptr, "godot_roc_init", "host.zig", @src().line, 1);
+        ) catch "gdextension-roc: version mismatch (string truncated).";
+        g_engine_interface.print_error(ver_msg.ptr, "gdextension_roc_init", "host.zig", @src().line, 1);
     }
 
     // TODO: conditionally upgrade at comptime
