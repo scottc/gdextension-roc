@@ -3,9 +3,9 @@
 GDExtension Roc language bindings generator for Godot Game Engine, Redot Game Engine & Blazium Game Engine.
 
 > [!NOTE]   
-> For **game development** with GDExtension-roc see our flagship example project [SurvivePG](https://github.com/scottc/survivepg).
+> For **game development** with GDExtension-Roc see our flagship example project [SurvivePG](https://github.com/scottc/survivepg).
 >
-> This page is for the **GDExtension roc platform generator**.
+> This page is for the **GDExtension Roc platform generator**.
 
 ## About
 
