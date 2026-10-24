@@ -717,7 +717,7 @@ const GodotRocObjectInstance = struct {
     instance_id: u64,
     /// App-defined layout. Roc interprets indices (hp, mana, flags, …).
     /// F32 lives in the low 32 bits via @bitCast; U32 similarly.
-    user_slots: [USER_SLOT_COUNT]u64 = [_]u64{0} ** USER_SLOT_COUNT,
+    user_slots: [USER_SLOT_COUNT]u64 = @splat(0),
 };
 
 fn requireCurrentObject() baseline_gde_if.GDExtensionObjectPtr { // ?*GodotRocObjectInstance
@@ -767,7 +767,7 @@ fn createInstance(
         .object = obj,
         .class_id = info.class_id,
         .instance_id = g_next_instance_id,
-        .user_slots = [_]u64{0} ** USER_SLOT_COUNT,
+        .user_slots = @splat(0),
     };
     g_next_instance_id += 1;
 
@@ -787,7 +787,7 @@ fn recreateInstance(
         .object = p_object,
         .class_id = info.class_id,
         .instance_id = g_next_instance_id,
-        .user_slots = [_]u64{0} ** USER_SLOT_COUNT,
+        .user_slots = @splat(0),
     };
     g_next_instance_id += 1;
 
