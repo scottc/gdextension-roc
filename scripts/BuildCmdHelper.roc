@@ -1,4 +1,5 @@
-import pf.Build exposing [Cmd, TaskId, BuildGraph]
+import pf.Build
+import pf.BuildCmd
 
 import modules/Host exposing [Optimize]
 import modules/Args exposing [PublishOpts]
@@ -7,9 +8,8 @@ import modules/CpuArchOS
 
 BuildCmdHelper := {}.{
     PhaseResult : {
-        cmds : List(Build.Cmd),
-        terminal_ids : List(TaskId),
-        next_id : TaskId,
+        cmds : List(BuildCmd),
+        terminals : List(BuildCmd),
     }
 
     ReplacePair : { find : Str, replace : Str }
@@ -23,12 +23,12 @@ BuildCmdHelper := {}.{
     }
 
     to_ci_build_graph = || {
-        prep = BuildCmdHelper.ci_phase_prepare(1)
-        d = BuildCmdHelper.ci_phase_dump(prep.next_id, prep.terminal_ids)
-        g = BuildCmdHelper.ci_phase_glue(d.next_id, prep.terminal_ids, d.terminal_ids)
-        h = BuildCmdHelper.ci_phase_host(g.next_id, g.terminal_ids)
-        w = BuildCmdHelper.ci_phase_workspace(h.next_id, h.terminal_ids)
-        s = BuildCmdHelper.ci_phase_smoke(w.next_id, w.terminal_ids)
+        prep = BuildCmdHelper.ci_phase_prepare({})
+        d = BuildCmdHelper.ci_phase_dump(prep.terminals)
+        g = BuildCmdHelper.ci_phase_glue(prep.terminals, d.terminals)
+        h = BuildCmdHelper.ci_phase_host(g.terminals)
+        w = BuildCmdHelper.ci_phase_workspace(h.terminals)
+        s = BuildCmdHelper.ci_phase_smoke(w.terminals)
 
         cmds =
             List.concat(
@@ -42,9 +42,7 @@ BuildCmdHelper := {}.{
                 ),
             )
 
-        graph = Build.graph(cmds)
-
-        graph
+        Build.graph(cmds)
     }
 
     # =============================================================================
@@ -57,9 +55,6 @@ BuildCmdHelper := {}.{
 
     ci_cpu_arch_os : CpuArchOS
     ci_cpu_arch_os = CpuArchOS.X64musl
-
-    # TODO: import from modules/Host.roc
-    #Optimize : [Debug, ReleaseFast, ReleaseSafe, ReleaseSmall]
 
     ci_optimize : [Debug, ReleaseFast, ReleaseSafe, ReleaseSmall]
     ci_optimize = Debug
@@ -174,31 +169,24 @@ BuildCmdHelper := {}.{
         Str.join_with($parts, "")
     }
 
-    find_replace_cmd : TaskId, List(TaskId), Str, List(ReplacePair), Str -> Build.Cmd
-    find_replace_cmd = |id, depends_on, file, pairs, description| {
+    find_replace_cmd : List(BuildCmd), Str, List(ReplacePair), Str -> BuildCmd
+    find_replace_cmd = |depends_on, file, pairs, description| {
         script = find_replace_sh_script(file, pairs)
-        Build.cmd({
-            id,
-            depends_on,
-            inputs: [file],
-            outputs: [file],
+        BuildCmd.new({
             program: "sh",
             args: ["-c", script],
             description,
-            cwd: "",
-            env: [],
-        })
+        }).depends_on(depends_on)
     }
 
     # =============================================================================
-    # Phases
+    # CI phases
     # =============================================================================
 
-    ci_phase_prepare : TaskId -> PhaseResult
-    ci_phase_prepare = |start_id| {
-        var $id = start_id
+    ci_phase_prepare : {} -> PhaseResult
+    ci_phase_prepare = |_| {
         var $cmds = []
-        var $clean_ids = []
+        var $clean = []
 
         roots = [
             "dump-out",
@@ -207,20 +195,13 @@ BuildCmdHelper := {}.{
             "smoke-out",
         ]
         for r in roots {
-            c = Build.cmd({
-                id: $id,
-                depends_on: [],
-                inputs: [],
-                outputs: [],
+            c = BuildCmd.new({
                 program: "rm",
                 args: ["-rf", r],
                 description: "rm -rf ${r}",
-                cwd: "",
-                env: [],
             })
             $cmds = $cmds.append(c)
-            $clean_ids = $clean_ids.append($id)
-            $id = $id + 1
+            $clean = $clean.append(c)
         }
 
         dirs = [
@@ -235,117 +216,78 @@ BuildCmdHelper := {}.{
         ]
         var $terminals = []
         for d in dirs {
-            c = Build.cmd({
-                id: $id,
-                depends_on: $clean_ids,
-                inputs: [],
-                outputs: [],
+            c = BuildCmd.new({
                 program: "mkdir",
                 args: ["-p", d],
                 description: "mkdir -p ${d}",
-                cwd: "",
-                env: [],
-            })
+            }).depends_on($clean)
             $cmds = $cmds.append(c)
-            $terminals = $terminals.append($id)
-            $id = $id + 1
+            $terminals = $terminals.append(c)
         }
 
-        { cmds: $cmds, terminal_ids: $terminals, next_id: $id }
+        { cmds: $cmds, terminals: $terminals }
     }
 
-    ci_phase_dump : TaskId, List(TaskId) -> PhaseResult
-    ci_phase_dump = |start_id, prepare_ids| {
-        dump = Build.cmd({
-            id: start_id,
-            depends_on: prepare_ids,
-            inputs: [],
-            outputs: [
-                "${ci_dump_out}/gdextension_interface.h",
-                "${ci_dump_out}/extension_api.json",
-            ],
-            program: ci_engine.to_cli_name(),
-            args: ["--headless", "--dump-gdextension-interface", "--dump-extension-api"],
-            description: "dump gdextension + extension_api (${ci_engine.to_cli_name()} <- ${ci_engine.to_name()})",
-            cwd: ci_dump_out,
-            env: [],
-        })
-        { cmds: [dump], terminal_ids: [start_id], next_id: start_id + 1 }
+    ci_phase_dump : List(BuildCmd) -> PhaseResult
+    ci_phase_dump = |prepare_cmds| {
+        dump =
+            BuildCmd.new({
+                program: ci_engine.to_cli_name(),
+                args: ["--headless", "--dump-gdextension-interface", "--dump-extension-api"],
+                description: "dump gdextension + extension_api (${ci_engine.to_cli_name()} <- ${ci_engine.to_name()})",
+            })
+            .depends_on(prepare_cmds)
+            .with_cwd(ci_dump_out)
+        { cmds: [dump], terminals: [dump] }
     }
 
-    ci_phase_glue : TaskId, List(TaskId), List(TaskId) -> PhaseResult
-    ci_phase_glue = |start_id, prepare_ids, dump_ids| {
-        var $id = start_id
+    ci_phase_glue : List(BuildCmd), List(BuildCmd) -> PhaseResult
+    ci_phase_glue = |prepare_cmds, dump_cmds| {
         var $cmds = []
-        deps = List.concat(prepare_ids, dump_ids)
+        deps = List.concat(prepare_cmds, dump_cmds)
 
-        gen_iface = Build.cmd({
-            id: $id,
-            depends_on: deps,
-            inputs: ["${ci_dump_out}/gdextension_interface.h"],
-            outputs: ["${ci_glue_out}/gdextension_interface.zig"],
-            program: "roc",
-            args: [
-                "run",
-                "scripts/gdextension_interface.generate.roc",
-                "--",
-                "--engine=${ci_engine.to_name()}",
-            ],
-            description: "Generate gdextension_interface (${ci_engine.to_name()})",
-            cwd: "",
-            env: [],
-        })
+        gen_iface =
+            BuildCmd.new({
+                program: "roc",
+                args: [
+                    "run",
+                    "scripts/gdextension_interface.generate.roc",
+                    "--",
+                    "--engine=${ci_engine.to_name()}",
+                ],
+                description: "Generate gdextension_interface (${ci_engine.to_name()})",
+            }).depends_on(deps)
         $cmds = $cmds.append(gen_iface)
-        gen_iface_id = $id
-        $id = $id + 1
 
-        gen_api = Build.cmd({
-            id: $id,
-            depends_on: deps,
-            inputs: ["${ci_dump_out}/extension_api.json"],
-            outputs: [
-                "${ci_platform_out}/main.roc",
-                "${ci_glue_out}/zig_platform_abi_impl.zig",
-            ],
-            program: "roc",
-            args: [
-                "run",
-                "scripts/extension_api.generate.roc",
-                "--",
-                "--engine=${ci_engine.to_name()}",
-                "--targets=${ci_cpu_arch_os.to_name()}",
-            ],
-            description: "Generate extension_api platform (${ci_engine.to_name()})",
-            cwd: "",
-            env: [],
-        })
+        gen_api =
+            BuildCmd.new({
+                program: "roc",
+                args: [
+                    "run",
+                    "scripts/extension_api.generate.roc",
+                    "--",
+                    "--engine=${ci_engine.to_name()}",
+                    "--targets=${ci_cpu_arch_os.to_name()}",
+                ],
+                description: "Generate extension_api platform (${ci_engine.to_name()})",
+            }).depends_on(deps)
         $cmds = $cmds.append(gen_api)
-        gen_api_id = $id
-        $id = $id + 1
 
-        glue = Build.cmd({
-            id: $id,
-            depends_on: [gen_api_id],
-            inputs: [ci_glue_spec, "${ci_platform_out}/main.roc"],
-            outputs: ["${ci_glue_out}/roc_platform_abi.zig"],
-            program: "roc",
-            args: [
-                "glue",
-                ci_glue_spec,
-                ci_glue_out,
-                "${ci_platform_out}/main.roc",
-            ],
-            description: "roc glue (${ci_engine.to_name()})",
-            cwd: "",
-            env: [],
-        })
+        glue =
+            BuildCmd.new({
+                program: "roc",
+                args: [
+                    "glue",
+                    ci_glue_spec,
+                    ci_glue_out,
+                    "${ci_platform_out}/main.roc",
+                ],
+                description: "roc glue (${ci_engine.to_name()})",
+            }).depends_on([gen_api])
         $cmds = $cmds.append(glue)
-        glue_id = $id
-        $id = $id + 1
 
         patch = find_replace_cmd(
-            $id,
-            [glue_id],
+            [glue],
             "${ci_glue_out}/roc_platform_abi.zig",
             [
                 {
@@ -360,193 +302,123 @@ BuildCmdHelper := {}.{
             "patch glue marker (${ci_engine.to_name()})",
         )
         $cmds = $cmds.append(patch)
-        patch_id = $id
-        $id = $id + 1
 
-        abi_note = Build.cmd({
-            id: $id,
-            depends_on: [patch_id],
-            inputs: ["${ci_glue_out}/roc_platform_abi.zig"],
-            outputs: ["${ci_glue_out}/roc_platform_abi.zig"],
-            program: "sh",
-            args: [
-                "-c",
-                Str.join_with(
-                    [
-                        "set -eu\n",
-                        "F='",
-                        ci_glue_out,
-                        "/roc_platform_abi.zig'\n",
-                        "if [ ! -f \"$F\" ]; then echo missing \"$F\" >&2; exit 1; fi\n",
-                        "grep -q 'PATCHED BY scripts/ci.roc' \"$F\" || printf '\\n// PATCHED BY scripts/ci.roc (glue)\\n' >> \"$F\"\n",
-                    ],
-                    "",
-                ),
-            ],
-            description: "note patched glue (${ci_engine.to_name()})",
-            cwd: "",
-            env: [],
-        })
+        abi_note =
+            BuildCmd.new({
+                program: "sh",
+                args: [
+                    "-c",
+                    Str.join_with(
+                        [
+                            "set -eu\n",
+                            "F='",
+                            ci_glue_out,
+                            "/roc_platform_abi.zig'\n",
+                            "if [ ! -f \"$F\" ]; then echo missing \"$F\" >&2; exit 1; fi\n",
+                            "grep -q 'PATCHED BY scripts/ci.roc' \"$F\" || printf '\\n// PATCHED BY scripts/ci.roc (glue)\\n' >> \"$F\"\n",
+                        ],
+                        "",
+                    ),
+                ],
+                description: "note patched glue (${ci_engine.to_name()})",
+            }).depends_on([patch])
         $cmds = $cmds.append(abi_note)
-        abi_id = $id
-        $id = $id + 1
 
-        cp_gde = Build.cmd({
-            id: $id,
-            depends_on: [gen_iface_id],
-            inputs: ["host/gde_call.template.zig"],
-            outputs: ["${ci_glue_out}/gde_call.zig"],
-            program: "cp",
-            args: ["host/gde_call.template.zig", "${ci_glue_out}/gde_call.zig"],
-            description: "cp gde_call.zig (${ci_engine.to_name()})",
-            cwd: "",
-            env: [],
-        })
+        cp_gde =
+            BuildCmd.new({
+                program: "cp",
+                args: ["host/gde_call.template.zig", "${ci_glue_out}/gde_call.zig"],
+                description: "cp gde_call.zig (${ci_engine.to_name()})",
+            }).depends_on([gen_iface])
         $cmds = $cmds.append(cp_gde)
-        cp_id = $id
-        $id = $id + 1
 
-        zt = Build.cmd({
-            id: $id,
-            depends_on: [gen_iface_id],
-            inputs: ["${ci_glue_out}/gdextension_interface.zig"],
-            outputs: [],
-            program: "zig",
-            args: ["test", "${ci_glue_out}/gdextension_interface.zig"],
-            description: "zig test gdextension_interface (${ci_engine.to_name()})",
-            cwd: "",
-            env: [],
-        })
+        zt =
+            BuildCmd.new({
+                program: "zig",
+                args: ["test", "${ci_glue_out}/gdextension_interface.zig"],
+                description: "zig test gdextension_interface (${ci_engine.to_name()})",
+            }).depends_on([gen_iface])
         $cmds = $cmds.append(zt)
-        zt_id = $id
-        $id = $id + 1
 
-        rc = Build.cmd({
-            id: $id,
-            depends_on: [gen_api_id],
-            inputs: ["${ci_platform_out}/main.roc"],
-            outputs: [],
-            program: "roc",
-            args: ["check", "${ci_platform_out}/main.roc"],
-            description: "roc check platform (${ci_engine.to_name()})",
-            cwd: "",
-            env: [],
-        })
+        rc =
+            BuildCmd.new({
+                program: "roc",
+                args: ["check", "${ci_platform_out}/main.roc"],
+                description: "roc check platform (${ci_engine.to_name()})",
+            }).depends_on([gen_api])
         $cmds = $cmds.append(rc)
-        rc_id = $id
-        $id = $id + 1
 
         {
             cmds: $cmds,
-            terminal_ids: [abi_id, cp_id, zt_id, rc_id],
-            next_id: $id,
+            terminals: [abi_note, cp_gde, zt, rc],
         }
     }
 
-    ci_phase_host : TaskId, List(TaskId) -> PhaseResult
-    ci_phase_host = |start_id, glue_ids| {
+    ci_phase_host : List(BuildCmd) -> PhaseResult
+    ci_phase_host = |glue_cmds| {
         out_dir = "${ci_platform_out}/targets/${ci_cpu_arch_os.to_name()}"
         out_path = "${out_dir}/${Host.to_target(ci_cpu_arch_os).lib_file}"
 
-        mk = Build.cmd({
-            id: start_id,
-            depends_on: glue_ids,
-            inputs: [],
-            outputs: [],
-            program: "mkdir",
-            args: ["-p", out_dir],
-            description: "mkdir host target ${ci_engine.to_name()} ${ci_engine.to_path_slug()}/${ci_cpu_arch_os.to_name()}",
-            cwd: "",
-            env: [],
-        })
+        mk =
+            BuildCmd.new({
+                program: "mkdir",
+                args: ["-p", out_dir],
+                description: "mkdir host target ${ci_engine.to_name()} ${ci_engine.to_path_slug()}/${ci_cpu_arch_os.to_name()}",
+            }).depends_on(glue_cmds)
 
-        compile = Build.cmd({
-            id: start_id + 1,
-            depends_on: [start_id],
-            inputs: ["host/host.zig"],
-            outputs: [out_path],
-            program: "zig",
-            args: [
-                "build-lib",
-                "host/host.zig",
-                "-target",
-                Host.to_target(ci_cpu_arch_os).zig_triple,
-                ci_debug_flag,
-                "-fPIC",
-                "-lc",
-                "-fcompiler-rt",
-                "--name",
-                "host",
-                "-static",
-                "-femit-bin=${out_path}",
-            ],
-            description: "compile host ${ci_engine.to_name()} ${ci_engine.to_path_slug()}/${ci_cpu_arch_os.to_name()}",
-            cwd: "",
-            env: [],
-        })
+        compile =
+            BuildCmd.new({
+                program: "zig",
+                args: [
+                    "build-lib",
+                    "host/host.zig",
+                    "-target",
+                    Host.to_target(ci_cpu_arch_os).zig_triple,
+                    ci_debug_flag,
+                    "-fPIC",
+                    "-lc",
+                    "-fcompiler-rt",
+                    "--name",
+                    "host",
+                    "-static",
+                    "-femit-bin=${out_path}",
+                ],
+                description: "compile host ${ci_engine.to_name()} ${ci_engine.to_path_slug()}/${ci_cpu_arch_os.to_name()}",
+            }).depends_on([mk])
 
-        pr : PhaseResult
-        pr = {
-            cmds: [mk, compile],
-            terminal_ids: [start_id + 1],
-            next_id: start_id + 2,
-        }
-        pr
+        { cmds: [mk, compile], terminals: [compile] }
     }
 
-    ci_phase_workspace : TaskId, List(TaskId) -> PhaseResult
-    ci_phase_workspace = |start_id, host_ids| {
-        var $id = start_id
+    ci_phase_workspace : List(BuildCmd) -> PhaseResult
+    ci_phase_workspace = |host_cmds| {
         var $cmds = []
 
-        mk = Build.cmd({
-            id: $id,
-            depends_on: host_ids,
-            inputs: [],
-            outputs: [],
-            program: "mkdir",
-            args: ["-p", ci_smoke_proj],
-            description: "mkdir smoke project (${ci_engine.to_name()})",
-            cwd: "",
-            env: [],
-        })
+        mk =
+            BuildCmd.new({
+                program: "mkdir",
+                args: ["-p", ci_smoke_proj],
+                description: "mkdir smoke project (${ci_engine.to_name()})",
+            }).depends_on(host_cmds)
         $cmds = $cmds.append(mk)
-        mk_id = $id
-        $id = $id + 1
 
-        cp_tpl = Build.cmd({
-            id: $id,
-            depends_on: [mk_id],
-            inputs: ["templates/ci/main.roc"],
-            outputs: ["${ci_smoke_proj}/main.roc"],
-            program: "cp",
-            args: ["-a", "templates/ci/.", "${ci_smoke_proj}/"],
-            description: "cp template game (${ci_engine.to_name()})",
-            cwd: "",
-            env: [],
-        })
+        cp_tpl =
+            BuildCmd.new({
+                program: "cp",
+                args: ["-a", "templates/ci/.", "${ci_smoke_proj}/"],
+                description: "cp template game (${ci_engine.to_name()})",
+            }).depends_on([mk])
         $cmds = $cmds.append(cp_tpl)
-        tpl_id = $id
-        $id = $id + 1
 
-        cp_plat = Build.cmd({
-            id: $id,
-            depends_on: [tpl_id],
-            inputs: ["${ci_platform_out}/main.roc"],
-            outputs: ["${ci_smoke_proj}/platform/main.roc"],
-            program: "cp",
-            args: ["-a", "${ci_platform_out}/.", "${ci_smoke_proj}/platform/"],
-            description: "cp local platform into smoke (${ci_engine.to_name()})",
-            cwd: "",
-            env: [],
-        })
+        cp_plat =
+            BuildCmd.new({
+                program: "cp",
+                args: ["-a", "${ci_platform_out}/.", "${ci_smoke_proj}/platform/"],
+                description: "cp local platform into smoke (${ci_engine.to_name()})",
+            }).depends_on([cp_tpl])
         $cmds = $cmds.append(cp_plat)
-        plat_id = $id
-        $id = $id + 1
 
         patch = find_replace_cmd(
-            $id,
-            [plat_id],
+            [cp_plat],
             "${ci_smoke_proj}/main.roc",
             [
                 {
@@ -557,36 +429,29 @@ BuildCmdHelper := {}.{
             "patch platform path (${ci_engine.to_name()})",
         )
         $cmds = $cmds.append(patch)
-        patch_id = $id
-        $id = $id + 1
 
-        { cmds: $cmds, terminal_ids: [patch_id], next_id: $id }
+        { cmds: $cmds, terminals: [patch] }
     }
 
-    ci_phase_smoke : TaskId, List(TaskId) -> PhaseResult
-    ci_phase_smoke = |start_id, ws_ids| {
+    ci_phase_smoke : List(BuildCmd) -> PhaseResult
+    ci_phase_smoke = |ws_cmds| {
         main_roc = "${ci_smoke_proj}/main.roc"
         out_so = "${ci_smoke_proj}/my_game.so"
 
-        desk = Build.cmd({
-            id: start_id,
-            depends_on: ws_ids,
-            inputs: [main_roc],
-            outputs: [out_so],
-            program: "roc",
-            args: [
-                "build",
-                main_roc,
-                "--target=${ci_cpu_arch_os.to_name()}",
-                "--no-cache",
-                "--output=${out_so}",
-            ],
-            description: "roc build desktop smoke ${ci_engine.to_name()} (${ci_engine.to_path_slug()}/${ci_cpu_arch_os.to_name()})",
-            cwd: "",
-            env: [],
-        })
+        desk =
+            BuildCmd.new({
+                program: "roc",
+                args: [
+                    "build",
+                    main_roc,
+                    "--target=${ci_cpu_arch_os.to_name()}",
+                    "--no-cache",
+                    "--output=${out_so}",
+                ],
+                description: "roc build desktop smoke ${ci_engine.to_name()} (${ci_engine.to_path_slug()}/${ci_cpu_arch_os.to_name()})",
+            }).depends_on(ws_cmds)
 
-        { cmds: [desk], terminal_ids: [start_id], next_id: start_id + 1 }
+        { cmds: [desk], terminals: [desk] }
     }
 
     # =============================================================================
@@ -608,196 +473,78 @@ BuildCmdHelper := {}.{
     engine_bundle_dir : Engine -> Str
     engine_bundle_dir = |e| "bundle-out/${e.to_path_slug()}"
 
-    #
-    # Build Graphs
-    #
+    # =============================================================================
+    # Publish graph
+    # =============================================================================
 
-    to_publish_build_graph : PubConfig -> BuildGraph
+    to_publish_build_graph : PubConfig -> Host.BuildGraph
     to_publish_build_graph = |cfg| {
-        prep = BuildCmdHelper.phase_prepare(1, cfg.baseline, cfg.engines)
-        var $id = prep.next_id
+        prep = BuildCmdHelper.phase_prepare(cfg.baseline, cfg.engines)
         var $cmds = prep.cmds
         var $bundle_terms = []
-        $zig_prior : List(TaskId)
-        var $zig_prior = []
+        var $zig_prior : List(BuildCmd) = []
 
-        bld = BuildCmdHelper.phase_dump($id, prep.terminal_ids, cfg.baseline)
+        bld = BuildCmdHelper.phase_dump(prep.terminals, cfg.baseline)
         $cmds = List.concat($cmds, bld.cmds)
-        $id = bld.next_id
 
-        blg = BuildCmdHelper.phase_glue_engine($id, prep.terminal_ids, bld.terminal_ids, cfg.baseline, cfg.hosts)
+        blg = BuildCmdHelper.phase_glue_engine(prep.terminals, bld.terminals, cfg.baseline, cfg.hosts)
         $cmds = List.concat($cmds, blg.cmds)
-        $id = blg.next_id
 
-        blh = BuildCmdHelper.phase_hosts_engine($id, blg.terminal_ids, $zig_prior, cfg.baseline, cfg.hosts, cfg.optimize)
+        blh = BuildCmdHelper.phase_hosts_engine(blg.terminals, $zig_prior, cfg.baseline, cfg.hosts, cfg.optimize)
         $cmds = List.concat($cmds, blh.cmds)
-        $id = blh.next_id
-        $zig_prior = blh.terminal_ids
+        $zig_prior = blh.terminals
 
-        blb = BuildCmdHelper.phase_bundle_engine($id, blh.terminal_ids, cfg.baseline, cfg.hosts)
+        blb = BuildCmdHelper.phase_bundle_engine(blh.terminals, cfg.baseline, cfg.hosts)
         $cmds = List.concat($cmds, blb.cmds)
-        $id = blb.next_id
-        $bundle_terms = List.concat($bundle_terms, blb.terminal_ids)
+        $bundle_terms = List.concat($bundle_terms, blb.terminals)
 
         for e in cfg.engines {
-
-            d = BuildCmdHelper.phase_dump($id, prep.terminal_ids, e)
+            d = BuildCmdHelper.phase_dump(prep.terminals, e)
             $cmds = List.concat($cmds, d.cmds)
-            $id = d.next_id
 
-            g = BuildCmdHelper.phase_glue_engine($id, prep.terminal_ids, d.terminal_ids, e, cfg.hosts)
+            g = BuildCmdHelper.phase_glue_engine(prep.terminals, d.terminals, e, cfg.hosts)
             $cmds = List.concat($cmds, g.cmds)
-            $id = g.next_id
 
-            h = BuildCmdHelper.phase_hosts_engine($id, g.terminal_ids, $zig_prior, e, cfg.hosts, cfg.optimize)
+            h = BuildCmdHelper.phase_hosts_engine(g.terminals, $zig_prior, e, cfg.hosts, cfg.optimize)
             $cmds = List.concat($cmds, h.cmds)
-            $id = h.next_id
-            $zig_prior = h.terminal_ids
+            $zig_prior = h.terminals
 
-            b = BuildCmdHelper.phase_bundle_engine($id, h.terminal_ids, e, cfg.hosts)
+            b = BuildCmdHelper.phase_bundle_engine(h.terminals, e, cfg.hosts)
             $cmds = List.concat($cmds, b.cmds)
-            $id = b.next_id
-            $bundle_terms = List.concat($bundle_terms, b.terminal_ids)
+            $bundle_terms = List.concat($bundle_terms, b.terminals)
         }
 
-        pub = BuildCmdHelper.phase_publish($id, $bundle_terms, cfg.baseline, cfg.engines, cfg.publish)
+        pub = BuildCmdHelper.phase_publish($bundle_terms, cfg.baseline, cfg.engines, cfg.publish)
         $cmds = List.concat($cmds, pub.cmds)
 
-
-        graph = Build.graph($cmds)
-
-        graph
+        Build.graph($cmds)
     }
 
-
     # =============================================================================
-    # Shell helpers
+    # Shell helpers (publish)
     # =============================================================================
 
     sh_dollar_brace : Str -> Str
     sh_dollar_brace = |inner| Str.concat("$", Str.concat("{", Str.concat(inner, "}")))
 
-    # find_replace_sh_script : Str, List(ReplacePair) -> Str
-    # find_replace_sh_script = |file, pairs| {
-    #     var $parts = [
-    #         "set -eu\n",
-    #         "FILE='",
-    #         file,
-    #         "'\n",
-    #         "if [ ! -f \"$FILE\" ]; then\n",
-    #         "  echo \"[find_replace] missing file: $FILE\" >&2\n",
-    #         "  exit 1\n",
-    #         "fi\n",
-    #         "replace_first() {\n",
-    #         "  _body=\"$1\"\n",
-    #         "  _find=\"$2\"\n",
-    #         "  _repl=\"$3\"\n",
-    #         "  awk -v bodyf=\"$_body\" -v findf=\"$_find\" -v replf=\"$_repl\" '\n",
-    #         "    function readfile(f,    s, line) {\n",
-    #         "      s = \"\"\n",
-    #         "      while ((getline line < f) > 0)\n",
-    #         "        s = s line ORS\n",
-    #         "      close(f)\n",
-    #         "      return s\n",
-    #         "    }\n",
-    #         "    BEGIN {\n",
-    #         "      find = readfile(findf)\n",
-    #         "      repl = readfile(replf)\n",
-    #         "      body = readfile(bodyf)\n",
-    #         "      while (length(body) > 0 && substr(body, length(body), 1) == ORS)\n",
-    #         "        body = substr(body, 1, length(body) - 1)\n",
-    #         "      while (length(find) > 0 && substr(find, length(find), 1) == ORS)\n",
-    #         "        find = substr(find, 1, length(find) - 1)\n",
-    #         "      while (length(repl) > 0 && substr(repl, length(repl), 1) == ORS)\n",
-    #         "        repl = substr(repl, 1, length(repl) - 1)\n",
-    #         "      idx = index(body, find)\n",
-    #         "      if (idx == 0) {\n",
-    #         "        print \"[find_replace] pattern not found in \" bodyf > \"/dev/stderr\"\n",
-    #         "        exit 1\n",
-    #         "      }\n",
-    #         "      out = substr(body, 1, idx - 1) repl substr(body, idx + length(find))\n",
-    #         "      printf \"%s\", out > bodyf \".new\"\n",
-    #         "    }\n",
-    #         "  '\n",
-    #         "  mv \"$_body.new\" \"$_body\"\n",
-    #         "}\n",
-    #     ]
-    #     var $i = 0.U64
-    #     for p in pairs {
-    #         i_str = $i.to_str()
-    #         $parts = List.concat(
-    #             $parts,
-    #             [
-    #                 "cat >\"$FILE.find_",
-    #                 i_str,
-    #                 "\" <<'ENDFIND'\n",
-    #                 p.find,
-    #                 "\nENDFIND\n",
-    #                 "cat >\"$FILE.repl_",
-    #                 i_str,
-    #                 "\" <<'ENDREPL'\n",
-    #                 p.replace,
-    #                 "\nENDREPL\n",
-    #                 "replace_first \"$FILE\" \"$FILE.find_",
-    #                 i_str,
-    #                 "\" \"$FILE.repl_",
-    #                 i_str,
-    #                 "\"\n",
-    #                 "rm -f \"$FILE.find_",
-    #                 i_str,
-    #                 "\" \"$FILE.repl_",
-    #                 i_str,
-    #                 "\"\n",
-    #             ],
-    #         )
-    #         $i = $i + 1
-    #     }
-    #     $parts = List.concat($parts, ["printf '%s\\n' \"patched $FILE\"\n"])
-    #     Str.join_with($parts, "")
-    # }
-
-    # find_replace_cmd : TaskId, List(TaskId), Str, List(ReplacePair), Str -> Cmd
-    # find_replace_cmd = |id, depends_on, file, pairs, description| {
-    #     script = find_replace_sh_script(file, pairs)
-    #     Build.cmd({
-    #         id,
-    #         depends_on,
-    #         inputs: [file],
-    #         outputs: [file],
-    #         program: "sh",
-    #         args: ["-c", script],
-    #         description,
-    #         cwd: "",
-    #         env: [],
-    #     })
-    # }
-
     # =============================================================================
-    # Phases
+    # Publish phases
     # =============================================================================
 
-    phase_prepare : TaskId, Engine, List(Engine) -> PhaseResult
-    phase_prepare = |start_id, baseline, engines| {
-        var $id = start_id
+    phase_prepare : Engine, List(Engine) -> PhaseResult
+    phase_prepare = |baseline, engines| {
         var $cmds = []
-        var $clean_ids = []
+        var $clean = []
 
         roots = ["dump-out", "platform-out", "host/glue-out", "bundle-out", "release-assets"]
         for r in roots {
-            c = Build.cmd({
-                id: $id,
-                depends_on: [],
-                inputs: [],
-                outputs: [],
+            c = BuildCmd.new({
                 program: "rm",
                 args: ["-rf", r],
                 description: "rm -rf ${r}",
-                cwd: "",
-                env: [],
             })
             $cmds = $cmds.append(c)
-            $clean_ids = $clean_ids.append($id)
-            $id = $id + 1
+            $clean = $clean.append(c)
         }
 
         var $terminals = []
@@ -810,20 +557,13 @@ BuildCmdHelper := {}.{
                 engine_bundle_dir(e),
             ]
             for d in dirs {
-                c = Build.cmd({
-                    id: $id,
-                    depends_on: $clean_ids,
-                    inputs: [],
-                    outputs: [],
+                c = BuildCmd.new({
                     program: "mkdir",
                     args: ["-p", d],
                     description: "mkdir -p ${d}",
-                    cwd: "",
-                    env: [],
-                })
+                }).depends_on($clean)
                 $cmds = $cmds.append(c)
-                $terminals = $terminals.append($id)
-                $id = $id + 1
+                $terminals = $terminals.append(c)
             }
         }
 
@@ -835,121 +575,81 @@ BuildCmdHelper := {}.{
             engine_bundle_dir(baseline),
         ]
         for bld in bldirs {
-            c = Build.cmd({
-                id: $id,
-                depends_on: $clean_ids,
-                inputs: [],
-                outputs: [],
+            c = BuildCmd.new({
                 program: "mkdir",
                 args: ["-p", bld],
                 description: "mkdir -p ${bld}",
-                cwd: "",
-                env: [],
-            })
+            }).depends_on($clean)
             $cmds = $cmds.append(c)
-            $terminals = $terminals.append($id)
-            $id = $id + 1
+            $terminals = $terminals.append(c)
         }
 
-        { cmds: $cmds, terminal_ids: $terminals, next_id: $id }
+        { cmds: $cmds, terminals: $terminals }
     }
 
-    phase_dump : TaskId, List(TaskId), Engine -> PhaseResult
-    phase_dump = |start_id, prepare_ids, eng| {
+    phase_dump : List(BuildCmd), Engine -> PhaseResult
+    phase_dump = |prepare_cmds, eng| {
         dump_dir = engine_dump_dir(eng)
-        dump = Build.cmd({
-            id: start_id,
-            depends_on: prepare_ids,
-            inputs: [],
-            outputs: [
-                "${dump_dir}/gdextension_interface.h",
-                "${dump_dir}/extension_api.json",
-            ],
-            program: eng.to_cli_name(),
-            args: ["--headless", "--dump-gdextension-interface", "--dump-extension-api"],
-            description: "dump (${eng.to_cli_name()} ${eng.to_path_slug()})",
-            cwd: dump_dir,
-            env: [],
-        })
-        { cmds: [dump], terminal_ids: [start_id], next_id: start_id + 1 }
+        dump =
+            BuildCmd.new({
+                program: eng.to_cli_name(),
+                args: ["--headless", "--dump-gdextension-interface", "--dump-extension-api"],
+                description: "dump (${eng.to_cli_name()} ${eng.to_path_slug()})",
+            })
+            .depends_on(prepare_cmds)
+            .with_cwd(dump_dir)
+        { cmds: [dump], terminals: [dump] }
     }
 
-    phase_glue_engine : TaskId, List(TaskId), List(TaskId), Engine, List(CpuArchOS) -> PhaseResult
-    phase_glue_engine = |start_id, prepare_ids, dump_ids, eng, hosts| {
-        #slug = eng.to_path_slug()
+    phase_glue_engine : List(BuildCmd), List(BuildCmd), Engine, List(CpuArchOS) -> PhaseResult
+    phase_glue_engine = |prepare_cmds, dump_cmds, eng, hosts| {
         glue_dir = engine_glue_dir(eng)
         platform_dir = engine_platform_dir(eng)
-        var $id = start_id
         var $cmds = []
-        deps = List.concat(prepare_ids, dump_ids)
+        deps = List.concat(prepare_cmds, dump_cmds)
 
-        gen_iface = Build.cmd({
-            id: $id,
-            depends_on: deps,
-            inputs: ["${engine_dump_dir(eng)}/gdextension_interface.h"],
-            outputs: ["${glue_dir}/gdextension_interface.zig"],
-            program: "roc",
-            args: [
-                "run",
-                "scripts/gdextension_interface.generate.roc",
-                "--",
-                "--engine=${eng.to_name()}",
-            ],
-            description: "Generate gdextension_interface (${eng.to_name()})",
-            cwd: "",
-            env: [],
-        })
+        gen_iface =
+            BuildCmd.new({
+                program: "roc",
+                args: [
+                    "run",
+                    "scripts/gdextension_interface.generate.roc",
+                    "--",
+                    "--engine=${eng.to_name()}",
+                ],
+                description: "Generate gdextension_interface (${eng.to_name()})",
+            }).depends_on(deps)
         $cmds = $cmds.append(gen_iface)
-        gen_iface_id = $id
-        $id = $id + 1
 
-        gen_api = Build.cmd({
-            id: $id,
-            depends_on: deps,
-            inputs: ["${engine_dump_dir(eng)}/extension_api.json"],
-            outputs: [
-                "${platform_dir}/main.roc",
-                "${glue_dir}/zig_platform_abi_impl.zig",
-            ],
-            program: "roc",
-            args: [
-                "run",
-                "scripts/extension_api.generate.roc",
-                "--",
-                "--engine=${eng.to_name()}",
-                "--targets=${Str.join_with(hosts.map(|h| h.to_name()), ",")}",
-            ],
-            description: "Generate extension_api platform (${eng.to_name()})",
-            cwd: "",
-            env: [],
-        })
+        gen_api =
+            BuildCmd.new({
+                program: "roc",
+                args: [
+                    "run",
+                    "scripts/extension_api.generate.roc",
+                    "--",
+                    "--engine=${eng.to_name()}",
+                    "--targets=${Str.join_with(hosts.map(|h| h.to_name()), ",")}",
+                ],
+                description: "Generate extension_api platform (${eng.to_name()})",
+            }).depends_on(deps)
         $cmds = $cmds.append(gen_api)
-        gen_api_id = $id
-        $id = $id + 1
 
-        glue = Build.cmd({
-            id: $id,
-            depends_on: [gen_api_id],
-            inputs: [glue_spec, "${platform_dir}/main.roc"],
-            outputs: ["${glue_dir}/roc_platform_abi.zig"],
-            program: "roc",
-            args: [
-                "glue",
-                glue_spec,
-                glue_dir,
-                "${platform_dir}/main.roc",
-            ],
-            description: "roc glue (${eng.to_name()})",
-            cwd: "",
-            env: [],
-        })
+        glue =
+            BuildCmd.new({
+                program: "roc",
+                args: [
+                    "glue",
+                    glue_spec,
+                    glue_dir,
+                    "${platform_dir}/main.roc",
+                ],
+                description: "roc glue (${eng.to_name()})",
+            }).depends_on([gen_api])
         $cmds = $cmds.append(glue)
-        glue_id = $id
-        $id = $id + 1
 
         patch = find_replace_cmd(
-            $id,
-            [glue_id],
+            [glue],
             "${glue_dir}/roc_platform_abi.zig",
             [
                 {
@@ -964,86 +664,55 @@ BuildCmdHelper := {}.{
             "patch glue marker (${eng.to_name()})",
         )
         $cmds = $cmds.append(patch)
-        patch_id = $id
-        $id = $id + 1
 
-        abi_note = Build.cmd({
-            id: $id,
-            depends_on: [patch_id],
-            inputs: ["${glue_dir}/roc_platform_abi.zig"],
-            outputs: ["${glue_dir}/roc_platform_abi.zig"],
-            program: "sh",
-            args: [
-                "-c",
-                Str.join_with(
-                    [
-                        "set -eu\n",
-                        "F='",
-                        glue_dir,
-                        "/roc_platform_abi.zig'\n",
-                        "if [ ! -f \"$F\" ]; then echo missing \"$F\" >&2; exit 1; fi\n",
-                        "grep -q 'PATCHED BY scripts/publish.roc' \"$F\" || printf '\\n// PATCHED BY scripts/publish.roc (glue)\\n' >> \"$F\"\n",
-                    ],
-                    "",
-                ),
-            ],
-            description: "note patched glue (${eng.to_name()})",
-            cwd: "",
-            env: [],
-        })
+        abi_note =
+            BuildCmd.new({
+                program: "sh",
+                args: [
+                    "-c",
+                    Str.join_with(
+                        [
+                            "set -eu\n",
+                            "F='",
+                            glue_dir,
+                            "/roc_platform_abi.zig'\n",
+                            "if [ ! -f \"$F\" ]; then echo missing \"$F\" >&2; exit 1; fi\n",
+                            "grep -q 'PATCHED BY scripts/publish.roc' \"$F\" || printf '\\n// PATCHED BY scripts/publish.roc (glue)\\n' >> \"$F\"\n",
+                        ],
+                        "",
+                    ),
+                ],
+                description: "note patched glue (${eng.to_name()})",
+            }).depends_on([patch])
         $cmds = $cmds.append(abi_note)
-        abi_id = $id
-        $id = $id + 1
 
-        cp_gde = Build.cmd({
-            id: $id,
-            depends_on: [gen_iface_id],
-            inputs: ["host/gde_call.template.zig"],
-            outputs: ["${glue_dir}/gde_call.zig"],
-            program: "cp",
-            args: ["host/gde_call.template.zig", "${glue_dir}/gde_call.zig"],
-            description: "cp gde_call.zig (${eng.to_name()})",
-            cwd: "",
-            env: [],
-        })
+        cp_gde =
+            BuildCmd.new({
+                program: "cp",
+                args: ["host/gde_call.template.zig", "${glue_dir}/gde_call.zig"],
+                description: "cp gde_call.zig (${eng.to_name()})",
+            }).depends_on([gen_iface])
         $cmds = $cmds.append(cp_gde)
-        cp_id = $id
-        $id = $id + 1
 
-        zt = Build.cmd({
-            id: $id,
-            depends_on: [gen_iface_id],
-            inputs: ["${glue_dir}/gdextension_interface.zig"],
-            outputs: [],
-            program: "zig",
-            args: ["test", "${glue_dir}/gdextension_interface.zig"],
-            description: "zig test gdextension_interface (${eng.to_name()})",
-            cwd: "",
-            env: [],
-        })
+        zt =
+            BuildCmd.new({
+                program: "zig",
+                args: ["test", "${glue_dir}/gdextension_interface.zig"],
+                description: "zig test gdextension_interface (${eng.to_name()})",
+            }).depends_on([gen_iface])
         $cmds = $cmds.append(zt)
-        zt_id = $id
-        $id = $id + 1
 
-        rc = Build.cmd({
-            id: $id,
-            depends_on: [gen_api_id],
-            inputs: ["${platform_dir}/main.roc"],
-            outputs: [],
-            program: "roc",
-            args: ["check", "${platform_dir}/main.roc"],
-            description: "roc check platform (${eng.to_name()})",
-            cwd: "",
-            env: [],
-        })
+        rc =
+            BuildCmd.new({
+                program: "roc",
+                args: ["check", "${platform_dir}/main.roc"],
+                description: "roc check platform (${eng.to_name()})",
+            }).depends_on([gen_api])
         $cmds = $cmds.append(rc)
-        rc_id = $id
-        $id = $id + 1
 
         {
             cmds: $cmds,
-            terminal_ids: [abi_id, cp_id, zt_id, rc_id],
-            next_id: $id,
+            terminals: [abi_note, cp_gde, zt, rc],
         }
     }
 
@@ -1088,123 +757,84 @@ BuildCmdHelper := {}.{
         }
     }
 
-    ## Sequential Zig host compiles (one at a time).
-    phase_hosts_engine : TaskId, List(TaskId), List(TaskId), Engine, List(CpuArchOS), Optimize -> PhaseResult
-    phase_hosts_engine = |start_id, glue_ids, prior_ids, eng, hosts, opt| {
-        var $id = start_id
+    ## Sequential Zig host compiles (one at a time via depends_on chain).
+    phase_hosts_engine : List(BuildCmd), List(BuildCmd), Engine, List(CpuArchOS), Optimize -> PhaseResult
+    phase_hosts_engine = |glue_cmds, prior_cmds, eng, hosts, opt| {
         var $cmds = []
-        var $prev = List.concat(glue_ids, prior_ids)
-        var $last = $prev
+        var $prev = List.concat(glue_cmds, prior_cmds)
+        var $last : List(BuildCmd) = $prev
 
         for h in hosts {
             out_dir = "${engine_platform_dir(eng)}/targets/${h.to_name()}"
             out_path = "${out_dir}/${Host.to_target(h).lib_file}"
 
-            mk = Build.cmd({
-                id: $id,
-                depends_on: $prev,
-                inputs: [],
-                outputs: [],
-                program: "mkdir",
-                args: ["-p", out_dir],
-                description: "mkdir host target ${eng.to_name()}: ${eng.to_path_slug()}/${h.to_name()}",
-                cwd: "",
-                env: [],
-            })
+            mk =
+                BuildCmd.new({
+                    program: "mkdir",
+                    args: ["-p", out_dir],
+                    description: "mkdir host target ${eng.to_name()}: ${eng.to_path_slug()}/${h.to_name()}",
+                }).depends_on($prev)
             $cmds = $cmds.append(mk)
-            mk_id = $id
-            $id = $id + 1
 
-            c = Build.cmd({
-                id: $id,
-                depends_on: [mk_id],
-                inputs: ["host/host.zig"],
-                outputs: [out_path],
-                program: "zig",
-                args: zig_host_args(h, opt, out_path),
-                description: "compile host ${eng.to_name()}: ${eng.to_path_slug()}/${h.to_name()}",
-                cwd: "",
-                env: [],
-            })
+            c =
+                BuildCmd.new({
+                    program: "zig",
+                    args: zig_host_args(h, opt, out_path),
+                    description: "compile host ${eng.to_name()}: ${eng.to_path_slug()}/${h.to_name()}",
+                }).depends_on([mk])
             $cmds = $cmds.append(c)
-            $prev = [$id]
-            $last = [$id]
-            $id = $id + 1
+            $prev = [c]
+            $last = [c]
         }
 
-        { cmds: $cmds, terminal_ids: $last, next_id: $id }
+        { cmds: $cmds, terminals: $last }
     }
 
-    phase_bundle_engine : TaskId, List(TaskId), Engine, List(CpuArchOS) -> PhaseResult
-    phase_bundle_engine = |start_id, host_ids, eng, hosts| {
-        var $id = start_id
+    phase_bundle_engine : List(BuildCmd), Engine, List(CpuArchOS) -> PhaseResult
+    phase_bundle_engine = |host_cmds, eng, hosts| {
         var $cmds = []
         plat = engine_platform_dir(eng)
 
-        mk = Build.cmd({
-            id: $id,
-            depends_on: host_ids,
-            inputs: [],
-            outputs: [],
-            program: "mkdir",
-            args: ["-p", engine_bundle_dir(eng)],
-            description: "mkdir bundle-out (${eng.to_name()})",
-            cwd: "",
-            env: [],
-        })
+        mk =
+            BuildCmd.new({
+                program: "mkdir",
+                args: ["-p", engine_bundle_dir(eng)],
+                description: "mkdir bundle-out (${eng.to_name()})",
+            }).depends_on(host_cmds)
         $cmds = $cmds.append(mk)
-        mk_id = $id
-        $id = $id + 1
 
         var $bundle_args = ["bundle", "main.roc"]
         for h in hosts {
             $bundle_args = $bundle_args.append("targets/${h.to_name()}/${Host.to_target(h).lib_file}")
         }
 
-        bund = Build.cmd({
-            id: $id,
-            depends_on: [mk_id],
-            inputs: ["${plat}/main.roc"],
-            outputs: [],
-            program: "roc",
-            args: $bundle_args,
-            description: "roc bundle (${eng.to_name()})",
-            cwd: plat,
-            env: [],
-        })
+        bund =
+            BuildCmd.new({
+                program: "roc",
+                args: $bundle_args,
+                description: "roc bundle (${eng.to_name()})",
+            })
+            .depends_on([mk])
+            .with_cwd(plat)
         $cmds = $cmds.append(bund)
-        bund_id = $id
-        $id = $id + 1
 
-        move = Build.cmd({
-            id: $id,
-            depends_on: [bund_id],
-            inputs: [],
-            outputs: [],
-            program: "sh",
-            args: [
-                "-c",
-                "mkdir -p bundle-out/${eng.to_path_slug()} && mv -f platform-out/${eng.to_path_slug()}/*.tar.zst bundle-out/${eng.to_path_slug()}/",
-            ],
-            description: "move bundle tar.zst (${eng.to_name()})",
-            cwd: "",
-            env: [],
-        })
+        move =
+            BuildCmd.new({
+                program: "sh",
+                args: [
+                    "-c",
+                    "mkdir -p bundle-out/${eng.to_path_slug()} && mv -f platform-out/${eng.to_path_slug()}/*.tar.zst bundle-out/${eng.to_path_slug()}/",
+                ],
+                description: "move bundle tar.zst (${eng.to_name()})",
+            }).depends_on([bund])
         $cmds = $cmds.append(move)
-        move_id = $id
-        $id = $id + 1
 
-        { cmds: $cmds, terminal_ids: [move_id], next_id: $id }
+        { cmds: $cmds, terminals: [move] }
     }
 
     ## Stage labeled assets + NOTES.md, then gh release create.
-    ## Asset name: <slug>-<original-hash>.tar.zst
-    ## Roc only needs the URL body; filename is for humans.
-    ##
-    ## Important: never put bash `${name}` inside a Roc string literal.
-    ## Always build it with sh_dollar_brace("name").
-    phase_publish : TaskId, List(TaskId), Engine, List(Engine), PublishOpts -> PhaseResult
-    phase_publish = |start_id, depends_on, baseline, engines, opts| {
+    phase_publish : List(BuildCmd), Engine, List(Engine), PublishOpts -> PhaseResult
+    phase_publish = |depends_on, baseline, engines, opts| {
         tag_line =
             match opts.tag {
                 Tag(t) => Str.concat("TAG='", Str.concat(t, "'\n"))
@@ -1218,7 +848,6 @@ BuildCmdHelper := {}.{
                     )
             }
 
-        # Emit one staging stanza per engine (slug + label baked in at graph-build time)
         $stage_parts : List(Str)
         var $stage_parts = []
         for e in engines {
@@ -1244,7 +873,6 @@ BuildCmdHelper := {}.{
         }
         stage_loop = Str.join_with($stage_parts, "")
 
-        # Bash ${…} fragments (built outside Roc interpolations)
         b_token = sh_dollar_brace("GITHUB_TOKEN:-")
         b_repo_env = sh_dollar_brace("GITHUB_REPOSITORY:-")
         b_files0 = sh_dollar_brace("_files[0]")
@@ -1537,22 +1165,13 @@ BuildCmdHelper := {}.{
                 "",
             )
 
-        cmd = Build.cmd({
-            id: start_id,
-            depends_on,
-            inputs: [],
-            outputs: [],
-            program: "sh",
-            args: ["-c", script],
-            description: "GitHub release (labeled assets + notes)",
-            cwd: "",
-            env: [],
-        })
+        cmd =
+            BuildCmd.new({
+                program: "sh",
+                args: ["-c", script],
+                description: "GitHub release (labeled assets + notes)",
+            }).depends_on(depends_on)
 
-        {
-            cmds: [cmd],
-            terminal_ids: [start_id],
-            next_id: start_id + 1,
-        }
+        { cmds: [cmd], terminals: [cmd] }
     }
 }

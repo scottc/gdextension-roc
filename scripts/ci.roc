@@ -8,14 +8,13 @@
 #
 
 app [main!] {
-    pf: platform "https://github.com/scottc/roc-build/releases/download/v0.1.0-rc1/EG89xVCPEj7M71tj23bNmENBi3uHAbavsWQL9NuTV8vo.tar.zst",
+    pf: platform "https://github.com/scottc/roc-build/releases/download/nightly-2026-10-24-7a24d76/Fz3UXDv7ojxq6LHbEHUnSdn4mfynFnWAnLFGu9SXaF4c.tar.zst",
 }
 
-import pf.Build exposing [Cmd, TaskId]
+import pf.Build
 import pf.Log
 
 import BuildCmdHelper exposing [PhaseResult, ReplacePair]
-
 
 
 # =============================================================================
