@@ -1,5 +1,6 @@
 import pf.Build
 import pf.BuildCmd
+import pf.Mem
 
 import modules/Host exposing [Optimize]
 import modules/Args exposing [PublishOpts]
@@ -20,7 +21,65 @@ BuildCmdHelper := {}.{
         hosts : List(CpuArchOS),
         optimize : Optimize,
         publish : PublishOpts,
+        limits : Limits,
     }
+
+    # -------------------------------------------------------------------------
+    # Hardware / overall scheduler limits
+    # max_memory / max_parallel of 0 = unlimited (host treats as no cap)
+    # -------------------------------------------------------------------------
+
+    Limits : { max_memory : U64, max_parallel : U64 }
+
+    ## Default Ubuntu GHA runner (~7 GiB RAM, 2 vCPU).
+    ## Leave headroom for the OS / runner agent.
+    default_limits : Limits
+    default_limits = {
+        max_memory: Mem.gb(6),
+        max_parallel: 2,
+    }
+
+    ## Build a Limits from explicit values (0 = unlimited on the host).
+    limits : U64, U64 -> Limits
+    limits = |max_memory, max_parallel| {
+        max_memory,
+        max_parallel,
+    }
+
+    # -------------------------------------------------------------------------
+    # Per-task memory budgets (declared reservation for the scheduler)
+    # Aim ~50–75% of true peak so packing stays safe without over-serializing.
+    # -------------------------------------------------------------------------
+
+    budget_shell : U64
+    budget_shell = Mem.mb(64) # rm, mkdir, cp, sh one-liners, find_replace
+
+    budget_engine_dump : U64
+    budget_engine_dump = Mem.mb(768) # godot/redot --dump-*
+
+    budget_roc_codegen : U64
+    budget_roc_codegen = Mem.mb(512) # roc run scripts/*.generate.roc
+
+    budget_roc_glue : U64
+    budget_roc_glue = Mem.mb(512)
+
+    budget_roc_check : U64
+    budget_roc_check = Mem.mb(384)
+
+    budget_zig_test : U64
+    budget_zig_test = Mem.mb(512)
+
+    budget_zig_host : U64
+    budget_zig_host = Mem.gb(2) # zig build-lib / build-obj host
+
+    budget_roc_build : U64
+    budget_roc_build = Mem.mb(768) # roc build smoke app
+
+    budget_roc_bundle : U64
+    budget_roc_bundle = Mem.mb(512)
+
+    budget_publish : U64
+    budget_publish = Mem.mb(128) # gh release + staging script
 
     to_ci_build_graph = || {
         prep = BuildCmdHelper.ci_phase_prepare({})
@@ -176,7 +235,7 @@ BuildCmdHelper := {}.{
             program: "sh",
             args: ["-c", script],
             description,
-        }).depends_on(depends_on)
+        }).depends_on(depends_on).with_memory(budget_shell)
     }
 
     # =============================================================================
@@ -199,7 +258,7 @@ BuildCmdHelper := {}.{
                 program: "rm",
                 args: ["-rf", r],
                 description: "rm -rf ${r}",
-            })
+            }).with_memory(budget_shell)
             $cmds = $cmds.append(c)
             $clean = $clean.append(c)
         }
@@ -220,7 +279,7 @@ BuildCmdHelper := {}.{
                 program: "mkdir",
                 args: ["-p", d],
                 description: "mkdir -p ${d}",
-            }).depends_on($clean)
+            }).depends_on($clean).with_memory(budget_shell)
             $cmds = $cmds.append(c)
             $terminals = $terminals.append(c)
         }
@@ -238,6 +297,7 @@ BuildCmdHelper := {}.{
             })
             .depends_on(prepare_cmds)
             .with_cwd(ci_dump_out)
+            .with_memory(budget_engine_dump)
         { cmds: [dump], terminals: [dump] }
     }
 
@@ -256,7 +316,7 @@ BuildCmdHelper := {}.{
                     "--engine=${ci_engine.to_name()}",
                 ],
                 description: "Generate gdextension_interface (${ci_engine.to_name()})",
-            }).depends_on(deps)
+            }).depends_on(deps).with_memory(budget_roc_codegen)
         $cmds = $cmds.append(gen_iface)
 
         gen_api =
@@ -270,7 +330,7 @@ BuildCmdHelper := {}.{
                     "--targets=${ci_cpu_arch_os.to_name()}",
                 ],
                 description: "Generate extension_api platform (${ci_engine.to_name()})",
-            }).depends_on(deps)
+            }).depends_on(deps).with_memory(budget_roc_codegen)
         $cmds = $cmds.append(gen_api)
 
         glue =
@@ -283,7 +343,7 @@ BuildCmdHelper := {}.{
                     "${ci_platform_out}/main.roc",
                 ],
                 description: "roc glue (${ci_engine.to_name()})",
-            }).depends_on([gen_api])
+            }).depends_on([gen_api]).with_memory(budget_roc_glue)
         $cmds = $cmds.append(glue)
 
         patch = find_replace_cmd(
@@ -321,7 +381,7 @@ BuildCmdHelper := {}.{
                     ),
                 ],
                 description: "note patched glue (${ci_engine.to_name()})",
-            }).depends_on([patch])
+            }).depends_on([patch]).with_memory(budget_shell)
         $cmds = $cmds.append(abi_note)
 
         cp_gde =
@@ -329,7 +389,7 @@ BuildCmdHelper := {}.{
                 program: "cp",
                 args: ["host/gde_call.template.zig", "${ci_glue_out}/gde_call.zig"],
                 description: "cp gde_call.zig (${ci_engine.to_name()})",
-            }).depends_on([gen_iface])
+            }).depends_on([gen_iface]).with_memory(budget_shell)
         $cmds = $cmds.append(cp_gde)
 
         zt =
@@ -337,7 +397,7 @@ BuildCmdHelper := {}.{
                 program: "zig",
                 args: ["test", "${ci_glue_out}/gdextension_interface.zig"],
                 description: "zig test gdextension_interface (${ci_engine.to_name()})",
-            }).depends_on([gen_iface])
+            }).depends_on([gen_iface]).with_memory(budget_zig_test)
         $cmds = $cmds.append(zt)
 
         rc =
@@ -345,7 +405,7 @@ BuildCmdHelper := {}.{
                 program: "roc",
                 args: ["check", "${ci_platform_out}/main.roc"],
                 description: "roc check platform (${ci_engine.to_name()})",
-            }).depends_on([gen_api])
+            }).depends_on([gen_api]).with_memory(budget_roc_check)
         $cmds = $cmds.append(rc)
 
         {
@@ -364,7 +424,7 @@ BuildCmdHelper := {}.{
                 program: "mkdir",
                 args: ["-p", out_dir],
                 description: "mkdir host target ${ci_engine.to_name()} ${ci_engine.to_path_slug()}/${ci_cpu_arch_os.to_name()}",
-            }).depends_on(glue_cmds)
+            }).depends_on(glue_cmds).with_memory(budget_shell)
 
         compile =
             BuildCmd.new({
@@ -384,7 +444,7 @@ BuildCmdHelper := {}.{
                     "-femit-bin=${out_path}",
                 ],
                 description: "compile host ${ci_engine.to_name()} ${ci_engine.to_path_slug()}/${ci_cpu_arch_os.to_name()}",
-            }).depends_on([mk])
+            }).depends_on([mk]).with_memory(budget_zig_host)
 
         { cmds: [mk, compile], terminals: [compile] }
     }
@@ -398,7 +458,7 @@ BuildCmdHelper := {}.{
                 program: "mkdir",
                 args: ["-p", ci_smoke_proj],
                 description: "mkdir smoke project (${ci_engine.to_name()})",
-            }).depends_on(host_cmds)
+            }).depends_on(host_cmds).with_memory(budget_shell)
         $cmds = $cmds.append(mk)
 
         cp_tpl =
@@ -406,7 +466,7 @@ BuildCmdHelper := {}.{
                 program: "cp",
                 args: ["-a", "templates/ci/.", "${ci_smoke_proj}/"],
                 description: "cp template game (${ci_engine.to_name()})",
-            }).depends_on([mk])
+            }).depends_on([mk]).with_memory(budget_shell)
         $cmds = $cmds.append(cp_tpl)
 
         cp_plat =
@@ -414,7 +474,7 @@ BuildCmdHelper := {}.{
                 program: "cp",
                 args: ["-a", "${ci_platform_out}/.", "${ci_smoke_proj}/platform/"],
                 description: "cp local platform into smoke (${ci_engine.to_name()})",
-            }).depends_on([cp_tpl])
+            }).depends_on([cp_tpl]).with_memory(budget_shell)
         $cmds = $cmds.append(cp_plat)
 
         patch = find_replace_cmd(
@@ -449,7 +509,7 @@ BuildCmdHelper := {}.{
                     "--output=${out_so}",
                 ],
                 description: "roc build desktop smoke ${ci_engine.to_name()} (${ci_engine.to_path_slug()}/${ci_cpu_arch_os.to_name()})",
-            }).depends_on(ws_cmds)
+            }).depends_on(ws_cmds).with_memory(budget_roc_build)
 
         { cmds: [desk], terminals: [desk] }
     }
@@ -542,7 +602,7 @@ BuildCmdHelper := {}.{
                 program: "rm",
                 args: ["-rf", r],
                 description: "rm -rf ${r}",
-            })
+            }).with_memory(budget_shell).with_memory(budget_shell)
             $cmds = $cmds.append(c)
             $clean = $clean.append(c)
         }
@@ -561,7 +621,7 @@ BuildCmdHelper := {}.{
                     program: "mkdir",
                     args: ["-p", d],
                     description: "mkdir -p ${d}",
-                }).depends_on($clean)
+                }).depends_on($clean).with_memory(budget_shell)
                 $cmds = $cmds.append(c)
                 $terminals = $terminals.append(c)
             }
@@ -579,7 +639,7 @@ BuildCmdHelper := {}.{
                 program: "mkdir",
                 args: ["-p", bld],
                 description: "mkdir -p ${bld}",
-            }).depends_on($clean)
+            }).depends_on($clean).with_memory(budget_shell)
             $cmds = $cmds.append(c)
             $terminals = $terminals.append(c)
         }
@@ -598,6 +658,7 @@ BuildCmdHelper := {}.{
             })
             .depends_on(prepare_cmds)
             .with_cwd(dump_dir)
+            .with_memory(budget_engine_dump)
         { cmds: [dump], terminals: [dump] }
     }
 
@@ -618,7 +679,7 @@ BuildCmdHelper := {}.{
                     "--engine=${eng.to_name()}",
                 ],
                 description: "Generate gdextension_interface (${eng.to_name()})",
-            }).depends_on(deps)
+            }).depends_on(deps).with_memory(budget_roc_codegen)
         $cmds = $cmds.append(gen_iface)
 
         gen_api =
@@ -632,7 +693,7 @@ BuildCmdHelper := {}.{
                     "--targets=${Str.join_with(hosts.map(|h| h.to_name()), ",")}",
                 ],
                 description: "Generate extension_api platform (${eng.to_name()})",
-            }).depends_on(deps)
+            }).depends_on(deps).with_memory(budget_roc_codegen)
         $cmds = $cmds.append(gen_api)
 
         glue =
@@ -645,7 +706,7 @@ BuildCmdHelper := {}.{
                     "${platform_dir}/main.roc",
                 ],
                 description: "roc glue (${eng.to_name()})",
-            }).depends_on([gen_api])
+            }).depends_on([gen_api]).with_memory(budget_roc_glue)
         $cmds = $cmds.append(glue)
 
         patch = find_replace_cmd(
@@ -683,7 +744,7 @@ BuildCmdHelper := {}.{
                     ),
                 ],
                 description: "note patched glue (${eng.to_name()})",
-            }).depends_on([patch])
+            }).depends_on([patch]).with_memory(budget_shell)
         $cmds = $cmds.append(abi_note)
 
         cp_gde =
@@ -691,7 +752,7 @@ BuildCmdHelper := {}.{
                 program: "cp",
                 args: ["host/gde_call.template.zig", "${glue_dir}/gde_call.zig"],
                 description: "cp gde_call.zig (${eng.to_name()})",
-            }).depends_on([gen_iface])
+            }).depends_on([gen_iface]).with_memory(budget_shell)
         $cmds = $cmds.append(cp_gde)
 
         zt =
@@ -699,7 +760,7 @@ BuildCmdHelper := {}.{
                 program: "zig",
                 args: ["test", "${glue_dir}/gdextension_interface.zig"],
                 description: "zig test gdextension_interface (${eng.to_name()})",
-            }).depends_on([gen_iface])
+            }).depends_on([gen_iface]).with_memory(budget_zig_test)
         $cmds = $cmds.append(zt)
 
         rc =
@@ -707,7 +768,7 @@ BuildCmdHelper := {}.{
                 program: "roc",
                 args: ["check", "${platform_dir}/main.roc"],
                 description: "roc check platform (${eng.to_name()})",
-            }).depends_on([gen_api])
+            }).depends_on([gen_api]).with_memory(budget_roc_check)
         $cmds = $cmds.append(rc)
 
         {
@@ -773,7 +834,7 @@ BuildCmdHelper := {}.{
                     program: "mkdir",
                     args: ["-p", out_dir],
                     description: "mkdir host target ${eng.to_name()}: ${eng.to_path_slug()}/${h.to_name()}",
-                }).depends_on($prev)
+                }).depends_on($prev).with_memory(budget_shell)
             $cmds = $cmds.append(mk)
 
             c =
@@ -781,7 +842,7 @@ BuildCmdHelper := {}.{
                     program: "zig",
                     args: zig_host_args(h, opt, out_path),
                     description: "compile host ${eng.to_name()}: ${eng.to_path_slug()}/${h.to_name()}",
-                }).depends_on([mk])
+                }).depends_on([mk]).with_memory(budget_zig_host)
             $cmds = $cmds.append(c)
             $prev = [c]
             $last = [c]
@@ -800,7 +861,7 @@ BuildCmdHelper := {}.{
                 program: "mkdir",
                 args: ["-p", engine_bundle_dir(eng)],
                 description: "mkdir bundle-out (${eng.to_name()})",
-            }).depends_on(host_cmds)
+            }).depends_on(host_cmds).with_memory(budget_shell)
         $cmds = $cmds.append(mk)
 
         var $bundle_args = ["bundle", "main.roc"]
@@ -816,6 +877,7 @@ BuildCmdHelper := {}.{
             })
             .depends_on([mk])
             .with_cwd(plat)
+            .with_memory(budget_roc_bundle)
         $cmds = $cmds.append(bund)
 
         move =
@@ -826,7 +888,7 @@ BuildCmdHelper := {}.{
                     "mkdir -p bundle-out/${eng.to_path_slug()} && mv -f platform-out/${eng.to_path_slug()}/*.tar.zst bundle-out/${eng.to_path_slug()}/",
                 ],
                 description: "move bundle tar.zst (${eng.to_name()})",
-            }).depends_on([bund])
+            }).depends_on([bund]).with_memory(budget_shell)
         $cmds = $cmds.append(move)
 
         { cmds: $cmds, terminals: [move] }
@@ -1170,7 +1232,7 @@ BuildCmdHelper := {}.{
                 program: "sh",
                 args: ["-c", script],
                 description: "GitHub release (labeled assets + notes)",
-            }).depends_on(depends_on)
+            }).depends_on(depends_on).with_memory(budget_shell)
 
         { cmds: [cmd], terminals: [cmd] }
     }

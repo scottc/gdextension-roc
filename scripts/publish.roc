@@ -47,13 +47,12 @@ main! : List(Str) => Try({}, [BadNumStr, EngineParseError(Str), Exit(I32), ListW
 main! = |args| {
     cfg : PubConfig
     cfg = {
-        baseline: Args.parse_baseline_flag_or_godot4_3(args), #TODO: handle error, don't early return these failures.
+        baseline: Args.parse_baseline_flag_or_godot4_3(args),
         engines: Args.parse_engines_flag_or_empty(args),
         hosts: Args.parse_targets_flag_or_auto(args),
         optimize: Args.parse_optimize_flag_or_release_fast(args),
-        publish: {
-            tag: Args.parse_tag_flag_or_autotag(args)
-        },
+        publish: { tag: Args.parse_tag_flag_or_autotag(args) },
+        limits: parse_limits_or_default(args),
     }
 
     Log.info!("Publish — engine × host matrix (Zig hosts sequential)")
@@ -86,5 +85,32 @@ main! = |args| {
             Log.error!(msg)
             Err(Exit(1))
         }
+    }
+}
+
+## Parse --max-memory-gb=N and --max-parallel=N; fall back to default_limits.
+parse_limits_or_default : List(Str) -> BuildCmdHelper.Limits
+parse_limits_or_default = |args| {
+    mem_gb = flag_u64(args, "--max-memory-gb=")
+    par = flag_u64(args, "--max-parallel=")
+    match (mem_gb, par) {
+        (Ok(m), Ok(p)) => BuildCmdHelper.limits(Mem.gb(m), p)
+        (Ok(m), Err(_)) => BuildCmdHelper.limits(Mem.gb(m), BuildCmdHelper.default_limits.max_parallel)
+        (Err(_), Ok(p)) => BuildCmdHelper.limits(BuildCmdHelper.default_limits.max_memory, p)
+        (Err(_), Err(_)) => BuildCmdHelper.default_limits
+    }
+}
+
+flag_u64 : List(Str), Str -> Result(U64, [NotFound])
+flag_u64 = |args, prefix| {
+    match List.find_first(args, |a| Str.starts_with(a, prefix)) {
+        Ok(flag) => {
+            rest = Str.drop_prefix(flag, prefix)
+            when Str.to_u64(rest) {
+                Ok(n) => Ok(n)
+                Err(_) => Err(NotFound)
+            }
+        }
+        Err(_) => Err(NotFound)
     }
 }

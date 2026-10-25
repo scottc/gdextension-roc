@@ -22,22 +22,53 @@ import BuildCmdHelper exposing [PhaseResult, ReplacePair]
 # =============================================================================
 
 main! : List(Str) => Try({}, [Exit(I32)])
-main! = |_args| {
-    #Log.info!("CI smoke — ${BuildCmdHelper.ci_engine.to_name()} × ${BuildCmdHelper.ci_cpu_arch_os.to_name()} (-O${BuildCmdHelper.opt_to_str(BuildCmdHelper.ci_optimize)})")
+main! = |args| {
+    # Optional overrides, e.g.:
+    #   --max-memory-gb=6 --max-parallel=2
+    # Omit both → default_limits (safe on stock GHA).
+    lim = parse_limits_or_default(args)
 
-    graph = BuildCmdHelper.to_ci_build_graph()
+    Log.info!(
+        "CI limits: max_memory=${lim.max_memory.to_str()} max_parallel=${lim.max_parallel.to_str()}",
+    )
+
+    graph = BuildCmdHelper.to_ci_build_graph(lim)
 
     match Build.run!(graph) {
         Ok({}) => {
             Log.info!("smoke ok")
-            # Log.info!("  platform: ${BuildCmdHelper.ci_platform_out}")
-            # Log.info!("  app:      ${BuildCmdHelper.ci_smoke_proj}")
-            # Log.info!("  so:       ${BuildCmdHelper.ci_smoke_proj}/my_game.so")
             Ok({})
         }
         Err(BuildFailed(msg)) => {
             Log.error!(msg)
             Err(Exit(1))
         }
+    }
+}
+
+## Parse --max-memory-gb=N and --max-parallel=N; fall back to default_limits.
+parse_limits_or_default : List(Str) -> BuildCmdHelper.Limits
+parse_limits_or_default = |args| {
+    mem_gb = flag_u64(args, "--max-memory-gb=")
+    par = flag_u64(args, "--max-parallel=")
+    match (mem_gb, par) {
+        (Ok(m), Ok(p)) => BuildCmdHelper.limits(Mem.gb(m), p)
+        (Ok(m), Err(_)) => BuildCmdHelper.limits(Mem.gb(m), BuildCmdHelper.default_limits.max_parallel)
+        (Err(_), Ok(p)) => BuildCmdHelper.limits(BuildCmdHelper.default_limits.max_memory, p)
+        (Err(_), Err(_)) => BuildCmdHelper.default_limits
+    }
+}
+
+flag_u64 : List(Str), Str -> Result(U64, [NotFound])
+flag_u64 = |args, prefix| {
+    match List.find_first(args, |a| Str.starts_with(a, prefix)) {
+        Ok(flag) => {
+            rest = Str.drop_prefix(flag, prefix)
+            when Str.to_u64(rest) {
+                Ok(n) => Ok(n)
+                Err(_) => Err(NotFound)
+            }
+        }
+        Err(_) => Err(NotFound)
     }
 }
