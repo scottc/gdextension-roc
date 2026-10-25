@@ -309,6 +309,20 @@ BuildCmdHelper := {}.{
         var $cmds = []
         deps = List.concat(prepare_cmds, dump_cmds)
 
+        gen_host =
+            BuildCmd.new({
+                program: "roc",
+                args: [
+                    "run",
+                    "scripts/host.generate.roc",
+                    "--",
+                    #TODO: pass --baseline & --engines flags?
+                    #"--engine=${ci_engine.to_name()}",
+                ],
+                description: "Generate gdextension_interface",
+            }).depends_on(deps).with_memory(budget_roc_codegen)
+        $cmds = $cmds.append(gen_host)
+
         gen_iface =
             BuildCmd.new({
                 program: "roc",
@@ -387,13 +401,6 @@ BuildCmdHelper := {}.{
             }).depends_on([patch]).with_memory(budget_shell)
         $cmds = $cmds.append(abi_note)
 
-        # cp_gde =
-        #     BuildCmd.new({
-        #         program: "cp",
-        #         args: ["host/gde_call.template.zig", "${ci_glue_out}/gde_call.zig"],
-        #         description: "cp gde_call.zig (${ci_engine.to_name()})",
-        #     }).depends_on([gen_iface]).with_memory(budget_shell)
-        # $cmds = $cmds.append(cp_gde)
 
         zt =
             BuildCmd.new({
@@ -413,7 +420,7 @@ BuildCmdHelper := {}.{
 
         {
             cmds: $cmds,
-            terminals: [abi_note, zt, rc], # cp_gde,
+            terminals: [abi_note, zt, rc],
         }
     }
 
@@ -551,6 +558,20 @@ BuildCmdHelper := {}.{
 
         bld = BuildCmdHelper.phase_dump(prep.terminals, cfg.baseline)
         $cmds = List.concat($cmds, bld.cmds)
+
+        gen_host =
+            BuildCmd.new({
+                program: "roc",
+                args: [
+                    "run",
+                    "scripts/host.generate.roc",
+                    "--",
+                    #TODO: take --baseline & --engines flags?
+                    #"--engine=${eng.to_name()}",
+                ],
+                description: "Generate host",
+            }).depends_on(bld.cmds).with_memory(budget_roc_codegen)
+        $cmds = $cmds.append(gen_iface)
 
         blg = BuildCmdHelper.phase_glue_engine(prep.terminals, bld.terminals, cfg.baseline, cfg.hosts)
         $cmds = List.concat($cmds, blg.cmds)

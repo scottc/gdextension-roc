@@ -1,10 +1,18 @@
 # out dirs
 dump-out/
+host-out/
+host-out/glue-out/
 platform-out/
-host/glue-out/
 bundle-out/
 smoke-out/
 
 # zig
 .zig-cache/
 .blueprint/
+
+
+# TODO: refactor & cleanup paths.
+host/host.zig
+host/baseline.zig
+host/
+host/glue-out/
