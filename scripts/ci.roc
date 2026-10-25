@@ -13,6 +13,7 @@ app [main!] {
 
 import pf.Build
 import pf.Log
+import pf.Mem
 
 import BuildCmdHelper exposing [PhaseResult, ReplacePair]
 
@@ -59,16 +60,16 @@ parse_limits_or_default = |args| {
     }
 }
 
-flag_u64 : List(Str), Str -> Result(U64, [NotFound])
+flag_u64 : List(Str), Str -> Try(U64, [NotFound])
 flag_u64 = |args, prefix| {
     match List.find_first(args, |a| Str.starts_with(a, prefix)) {
         Ok(flag) => {
             rest = Str.drop_prefix(flag, prefix)
-            when Str.to_u64(rest) {
+            match U64.from_str(rest) {
                 Ok(n) => Ok(n)
-                Err(_) => Err(NotFound)
+                Err(_err) => Err(NotFound)
             }
         }
-        Err(_) => Err(NotFound)
+        Err(_err) => Err(NotFound)
     }
 }

@@ -1,8 +1,9 @@
 import pf.Build
 import pf.BuildCmd
 import pf.Mem
+# import pf.Host exposing [BuildGraph, Limits] #TODO: import
 
-import modules/Host exposing [Optimize]
+import modules/HostTarget exposing [Optimize] #TODO: rename conflicting local module "HostTargets" or something.
 import modules/Args exposing [PublishOpts]
 import modules/Engine
 import modules/CpuArchOS
@@ -29,6 +30,7 @@ BuildCmdHelper := {}.{
     # max_memory / max_parallel of 0 = unlimited (host treats as no cap)
     # -------------------------------------------------------------------------
 
+    ## TODO: move Limits struct into build platform, it belongs there, not here.
     Limits : { max_memory : U64, max_parallel : U64 }
 
     ## Default Ubuntu GHA runner (~7 GiB RAM, 2 vCPU).
@@ -81,7 +83,8 @@ BuildCmdHelper := {}.{
     budget_publish : U64
     budget_publish = Mem.mb(128) # gh release + staging script
 
-    to_ci_build_graph = || {
+    to_ci_build_graph : Limits => _ #BuildGraph
+    to_ci_build_graph = |lims| {
         prep = BuildCmdHelper.ci_phase_prepare({})
         d = BuildCmdHelper.ci_phase_dump(prep.terminals)
         g = BuildCmdHelper.ci_phase_glue(prep.terminals, d.terminals)
@@ -101,7 +104,7 @@ BuildCmdHelper := {}.{
                 ),
             )
 
-        Build.graph(cmds)
+        Build.graph_with(cmds, lims)
     }
 
     # =============================================================================
@@ -417,7 +420,7 @@ BuildCmdHelper := {}.{
     ci_phase_host : List(BuildCmd) -> PhaseResult
     ci_phase_host = |glue_cmds| {
         out_dir = "${ci_platform_out}/targets/${ci_cpu_arch_os.to_name()}"
-        out_path = "${out_dir}/${Host.to_target(ci_cpu_arch_os).lib_file}"
+        out_path = "${out_dir}/${HostTarget.to_target(ci_cpu_arch_os).lib_file}"
 
         mk =
             BuildCmd.new({
@@ -433,7 +436,7 @@ BuildCmdHelper := {}.{
                     "build-lib",
                     "host/host.zig",
                     "-target",
-                    Host.to_target(ci_cpu_arch_os).zig_triple,
+                    HostTarget.to_target(ci_cpu_arch_os).zig_triple,
                     ci_debug_flag,
                     "-fPIC",
                     "-lc",
@@ -537,12 +540,14 @@ BuildCmdHelper := {}.{
     # Publish graph
     # =============================================================================
 
-    to_publish_build_graph : PubConfig -> Host.BuildGraph
+    to_publish_build_graph : PubConfig -> _ # Host.BuildGraph
     to_publish_build_graph = |cfg| {
         prep = BuildCmdHelper.phase_prepare(cfg.baseline, cfg.engines)
         var $cmds = prep.cmds
         var $bundle_terms = []
-        var $zig_prior : List(BuildCmd) = []
+
+        $zig_prior : List(BuildCmd)
+        var $zig_prior = []
 
         bld = BuildCmdHelper.phase_dump(prep.terminals, cfg.baseline)
         $cmds = List.concat($cmds, bld.cmds)
@@ -577,7 +582,7 @@ BuildCmdHelper := {}.{
         pub = BuildCmdHelper.phase_publish($bundle_terms, cfg.baseline, cfg.engines, cfg.publish)
         $cmds = List.concat($cmds, pub.cmds)
 
-        Build.graph($cmds)
+        Build.graph_with($cmds, cfg.limits)
     }
 
     # =============================================================================
@@ -779,8 +784,8 @@ BuildCmdHelper := {}.{
 
     zig_host_args : CpuArchOS, Optimize, Str -> List(Str)
     zig_host_args = |cpu_arch_os, opt, out_path| {
-        host = Host.to_target(cpu_arch_os)
-        o = Host.optimize_str(opt)
+        host = HostTarget.to_target(cpu_arch_os)
+        o = HostTarget.optimize_str(opt)
         base =
             match host.kind {
                 WasmObj =>
@@ -823,11 +828,13 @@ BuildCmdHelper := {}.{
     phase_hosts_engine = |glue_cmds, prior_cmds, eng, hosts, opt| {
         var $cmds = []
         var $prev = List.concat(glue_cmds, prior_cmds)
-        var $last : List(BuildCmd) = $prev
+
+        $last : List(BuildCmd)
+        var $last = $prev
 
         for h in hosts {
             out_dir = "${engine_platform_dir(eng)}/targets/${h.to_name()}"
-            out_path = "${out_dir}/${Host.to_target(h).lib_file}"
+            out_path = "${out_dir}/${HostTarget.to_target(h).lib_file}"
 
             mk =
                 BuildCmd.new({
@@ -866,7 +873,7 @@ BuildCmdHelper := {}.{
 
         var $bundle_args = ["bundle", "main.roc"]
         for h in hosts {
-            $bundle_args = $bundle_args.append("targets/${h.to_name()}/${Host.to_target(h).lib_file}")
+            $bundle_args = $bundle_args.append("targets/${h.to_name()}/${HostTarget.to_target(h).lib_file}")
         }
 
         bund =
