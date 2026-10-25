@@ -28,6 +28,7 @@ import modules/StringHelper
 import modules/ModMap
 import modules/CpuArchOS
 import modules/ExtensionApiRenderer
+import modules/GDECallTemplate
 import modules/ExtensionApi exposing [
     #ExtensionApi,
     MethodDef,
@@ -152,6 +153,9 @@ main! = |args| {
 
     Path.join(roc_out_path, "main.roc")
         .write_utf8!(ExtensionApiRenderer.render_platform_main(decoded, selected_targets, CpuArchOS.all))?
+
+    Path.join(glue_out_dir, "gde_call.zig")
+        .write_utf8!(GDECallTemplate.render())?
 
     Path.join(glue_out_dir, "zig_platform_abi_impl.zig")
         .write_utf8!(ExtensionApiRenderer.render_zig_platform_abi_impl(decoded))?

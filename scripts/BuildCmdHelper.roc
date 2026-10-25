@@ -387,13 +387,13 @@ BuildCmdHelper := {}.{
             }).depends_on([patch]).with_memory(budget_shell)
         $cmds = $cmds.append(abi_note)
 
-        cp_gde =
-            BuildCmd.new({
-                program: "cp",
-                args: ["host/gde_call.template.zig", "${ci_glue_out}/gde_call.zig"],
-                description: "cp gde_call.zig (${ci_engine.to_name()})",
-            }).depends_on([gen_iface]).with_memory(budget_shell)
-        $cmds = $cmds.append(cp_gde)
+        # cp_gde =
+        #     BuildCmd.new({
+        #         program: "cp",
+        #         args: ["host/gde_call.template.zig", "${ci_glue_out}/gde_call.zig"],
+        #         description: "cp gde_call.zig (${ci_engine.to_name()})",
+        #     }).depends_on([gen_iface]).with_memory(budget_shell)
+        # $cmds = $cmds.append(cp_gde)
 
         zt =
             BuildCmd.new({
@@ -413,7 +413,7 @@ BuildCmdHelper := {}.{
 
         {
             cmds: $cmds,
-            terminals: [abi_note, cp_gde, zt, rc],
+            terminals: [abi_note, zt, rc], # cp_gde,
         }
     }
 
