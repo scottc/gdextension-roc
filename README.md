@@ -201,14 +201,20 @@ The scripts folder is for platform generator maintainers, to perform a variety o
 Note: roc blueprint package manager is used to manage environments & tools.
 
 ```sh
-# nix run github:lukewilliamboswell/roc-blueprint/0.5.0 -- shell
-blueprint shell
-
-# nix run github:lukewilliamboswell/roc-blueprint/0.5.0 -- run ci -- \
-blueprint run ci \
+nix run github:lukewilliamboswell/roc-blueprint/0.5.0 -- run publish -- \
 --baseline=godot4.3 \
 --engines=godot4.7,redot26.3 \
 --targets=x64musl,wasm32 \
 --tests=all \
--Doptimize=Debug
+-Doptimize=ReleaseFast \
+--output-dump-dir=dump-out/ \
+--output-host-dir=host-out/ \
+--output-platform-dir=platform-out/ \
+--output-bundle-dir=bundle-out/
+```
+
+```sh
+nix run github:lukewilliamboswell/roc-blueprint/0.5.0 -- shell
+
+nix run github:lukewilliamboswell/roc-blueprint/0.5.0 -- run ci
 ```
