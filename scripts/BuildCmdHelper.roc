@@ -571,7 +571,7 @@ BuildCmdHelper := {}.{
                 ],
                 description: "Generate host",
             }).depends_on(bld.cmds).with_memory(budget_roc_codegen)
-        $cmds = $cmds.append(gen_iface)
+        $cmds = $cmds.append(gen_host)
 
         blg = BuildCmdHelper.phase_glue_engine(prep.terminals, bld.terminals, cfg.baseline, cfg.hosts)
         $cmds = List.concat($cmds, blg.cmds)
